@@ -1,0 +1,13 @@
+{
+  "name": "bart-fart",
+  "version": "1.0.0",
+  "description": "Live BART train tracker — estimates the position of every train in the system from BART's real-time departure API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

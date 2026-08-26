@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bart-fart — live BART train tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #101418; --panel: #1a2028; --text: #e8edf2; --muted: #93a1b0;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  header {
+    background: var(--panel); color: var(--text); padding: 10px 16px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    box-shadow: 0 1px 6px rgba(0,0,0,.4); z-index: 1000;
+  }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+  header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  #status { color: var(--muted); font-size: 13px; margin-left: auto; }
+  #lines { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+    color: var(--text); background: #232b35; border-radius: 999px; padding: 3px 10px;
+  }
+  .chip i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  #map { flex: 1; background: #dfe3e8; }
+  .leaflet-tile { filter: grayscale(.85) brightness(1.03); }
+  .train-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2.5px solid #fff; box-shadow: 0 0 6px rgba(0,0,0,.6);
+    transition: transform .2s;
+  }
+  .train-marker:hover .train-dot { transform: scale(1.3); }
+  .leaflet-popup-content { font-size: 13px; line-height: 1.5; }
+  .leaflet-popup-content b { font-size: 14px; }
+  .stn-tip { font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>bart-fart <span>live BART train tracker</span></h1>
+    <div id="lines"></div>
+    <div id="status">loading…</div>
+  </header>
+  <div id="map"></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map', { zoomControl: true }).setView([37.72, -122.28], 11);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 18,
+}).addTo(map);
+
+const trainLayer = L.layerGroup().addTo(map);
+let network = null;
+
+function drawNetwork(net) {
+  const stn = Object.fromEntries(net.stations.map(s => [s.abbr, s]));
+  // One polyline per line color (both directions share the same track).
+  const seen = new Set();
+  for (const r of net.routes) {
+    if (seen.has(r.color)) continue;
+    seen.add(r.color);
+    const pts = r.stations.map(a => [stn[a].lat, stn[a].lon]);
+    L.polyline(pts, { color: r.hexcolor, weight: 4, opacity: .8 }).addTo(map);
+  }
+  for (const s of net.stations) {
+    L.circleMarker([s.lat, s.lon], {
+      radius: 3.5, color: '#333c44', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1,
+    }).bindTooltip(s.name, { className: 'stn-tip', direction: 'top' }).addTo(map);
+  }
+}
+
+function drawTrains(data) {
+  trainLayer.clearLayers();
+  const counts = {};
+  for (const t of data.trains) {
+    counts[t.color] = counts[t.color] || { n: 0, hex: t.hexcolor };
+    counts[t.color].n++;
+    const icon = L.divIcon({
+      className: 'train-marker',
+      iconSize: [16, 16], iconAnchor: [8, 8],
+      html: `<div class="train-dot" style="background:${t.hexcolor}"></div>`,
+    });
+    const where = t.atStation
+      ? `At <b>${t.atStation}</b>`
+      : `${t.prevStation} → <b>${t.nextStation}</b> (~${t.minutesToNext} min)`;
+    L.marker([t.lat, t.lon], { icon, zIndexOffset: 500 })
+      .bindPopup(
+        `<b style="color:${t.hexcolor}">● ${t.color}</b> to <b>${t.destination}</b><br>` +
+        `${where}<br>` +
+        `${t.cars ? t.cars + ' cars · ' : ''}${t.direction}bound` +
+        (t.delayMin > 0 ? ` · <span style="color:#ff7043">${t.delayMin} min late</span>` : '')
+      )
+      .addTo(trainLayer);
+  }
+  document.getElementById('lines').innerHTML = Object.entries(counts)
+    .sort()
+    .map(([c, v]) => `<span class="chip"><i style="background:${v.hex}"></i>${c} ${v.n}</span>`)
+    .join('');
+  const when = new Date(data.updated).toLocaleTimeString();
+  document.getElementById('status').textContent =
+    `${data.trains.length} trains · updated ${when}` + (data.error ? ' · ⚠ API error, showing last data' : '');
+}
+
+async function refresh() {
+  try {
+    const data = await (await fetch('/api/trains')).json();
+    if (data.updated) drawTrains(data);
+  } catch (e) {
+    document.getElementById('status').textContent = '⚠ lost connection to server';
+  }
+}
+
+(async () => {
+  network = await (await fetch('/api/network')).json();
+  drawNetwork(network);
+  await refresh();
+  setInterval(refresh, 15000);
+})();
+</script>
+</body>
+</html>
