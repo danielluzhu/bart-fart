@@ -270,6 +270,21 @@
     50% { transform: scaleY(.12); filter: brightness(1.6); }
     100% { transform: scaleY(1); filter: brightness(1); }
   }
+  /* direction: an enamel-sign badge, deliberately unlike the flap cells */
+  .fdir {
+    width: 96px; height: 30px; flex: none;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    font-size: 13px; font-weight: 500; letter-spacing: .18em; text-indent: .18em;
+    color: #ffc94d;
+    border: 1px solid #6f5f3f; border-radius: 999px;
+    background: rgba(255, 201, 77, .07);
+    text-shadow: 0 0 10px rgba(255, 201, 77, .35);
+  }
+  .fdir:empty { opacity: 0; }
+  /* minutes: one wide flap plate, not per-digit cells */
+  .fmin {
+    width: 84px; font-variant-numeric: tabular-nums; letter-spacing: .08em;
+  }
   .sp { flex: 1; min-width: 6px; }
   #hall-foot {
     text-align: center; margin-top: 20px;
@@ -277,6 +292,8 @@
   }
   @media (max-width: 900px) {
     .fcell { width: 19px; height: 27px; font-size: 15px; }
+    .fdir { width: 70px; font-size: 10px; gap: 4px; }
+    .fmin { width: 58px; }
     #hall-head h2 { font-size: 30px; }
     #hall-inner { padding-top: 120px; }
   }
@@ -442,7 +459,7 @@ function stationBoard(s) {
 
 /* ================= split-flap departures hall ================= */
 const FLAPCHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/. ';
-const HALL_ROWS = 10, DEST_W = 18, MIN_W = 3;
+const HALL_ROWS = 10, DEST_W = 18;
 let hallStation = 'EMBR';
 try { hallStation = localStorage.getItem('bart-fart-hall-stn') || 'EMBR'; } catch (e) {}
 
@@ -464,8 +481,8 @@ function buildHall(net) {
   cols.innerHTML =
     `<span style="width:14px"></span>` +
     `<span style="flex:1">DESTINATION</span>` +
-    `<span style="width:${26 + 3}px">DIR</span>` +
-    `<span style="width:${MIN_W * 29 - 3}px;text-align:right">MIN</span>`;
+    `<span style="width:96px;text-align:center">DIRECTION</span>` +
+    `<span style="width:84px;text-align:center">MIN</span>`;
 
   const rowsEl = document.getElementById('frows');
   rowsEl.innerHTML = '';
@@ -476,8 +493,8 @@ function buildHall(net) {
       `<span class="fpill"></span>` +
       `<span class="fgroup dest">${'<span class="fcell"> </span>'.repeat(DEST_W)}</span>` +
       `<span class="sp"></span>` +
-      `<span class="fgroup dir"><span class="fcell"> </span></span>` +
-      `<span class="fgroup min">${'<span class="fcell"> </span>'.repeat(MIN_W)}</span>`;
+      `<span class="fdir"></span>` +
+      `<span class="fcell fmin"> </span>`;
     rowsEl.appendChild(row);
   }
   setInterval(() => {
@@ -486,11 +503,13 @@ function buildHall(net) {
   }, 1000);
 }
 
-function setCell(el, ch) {
-  ch = (ch || ' ').toUpperCase();
-  if (el.dataset.ch === ch) return;
-  el.dataset.ch = ch;
+function setCell(el, text) {
+  text = (text || ' ').toUpperCase();
+  if (el.dataset.ch === text) return;
+  el.dataset.ch = text;
   clearInterval(el._t);
+  const scramble = () =>
+    Array.from({ length: text.trim().length || 1 }, () => FLAPCHARS[Math.floor(Math.random() * FLAPCHARS.length)]).join('');
   let steps = 2 + Math.floor(Math.random() * 4);
   el._t = setInterval(() => {
     el.classList.remove('flipping');
@@ -498,9 +517,9 @@ function setCell(el, ch) {
     el.classList.add('flipping');
     if (--steps <= 0) {
       clearInterval(el._t);
-      el.textContent = ch;
+      el.textContent = text;
     } else {
-      el.textContent = FLAPCHARS[Math.floor(Math.random() * FLAPCHARS.length)];
+      el.textContent = scramble();
     }
   }, 80 + Math.random() * 50);
 }
@@ -518,7 +537,8 @@ function renderHall() {
     for (const est of BartCore.asArray(etd.estimate)) {
       const mins = est.minutes === 'Leaving' ? 0 : Number(est.minutes);
       if (!Number.isFinite(mins) || est.cancelflag === '1') continue;
-      rows.push({ dest: etd.destination, hex: est.hexcolor, dir: est.direction[0], mins });
+      const dest = etd.destination === 'Pittsburg/Bay Point' ? 'PITTSBURG/BAY PT' : etd.destination;
+      rows.push({ dest, hex: est.hexcolor, dir: est.direction[0], mins });
     }
   }
   rows.sort((a, b) => a.mins - b.mins);
@@ -527,8 +547,8 @@ function renderHall() {
     const r = rows[i];
     rowEl.querySelector('.fpill').style.setProperty('--c', r ? r.hex : '#2a251c');
     setGroup(rowEl.querySelector('.dest'), r ? r.dest : '', DEST_W, false);
-    setGroup(rowEl.querySelector('.dir'), r ? r.dir : '', 1, false);
-    setGroup(rowEl.querySelector('.min'), r ? (r.mins === 0 ? 'NOW' : String(r.mins)) : '', MIN_W, true);
+    rowEl.querySelector('.fdir').textContent = r ? (r.dir === 'N' ? '▲ NORTH' : '▼ SOUTH') : '';
+    setCell(rowEl.querySelector('.fmin'), r ? (r.mins === 0 ? 'NOW' : String(r.mins)) : ' ');
   });
 }
 
