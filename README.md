@@ -2,13 +2,21 @@
 
 A live map of every BART train in the system.
 
+**Live site: https://danielluzhu.github.io/bart-fart/**
+
 ## Run it
+
+The site is fully static (the browser talks to the BART API directly, which
+allows cross-origin requests) — GitHub Pages hosts it straight from `docs/`.
+
+To run locally, either open `docs/index.html` via any static file server, or:
 
 ```
 npm start
 ```
 
-Then open http://localhost:8642. No dependencies — just Node 18+.
+which serves the site at http://localhost:8642 and additionally exposes the
+train estimates as a JSON API. No dependencies — just Node 18+.
 
 ## How it works
 
@@ -34,7 +42,10 @@ them from what BART *does* publish:
 Accuracy is roughly ±1 minute of travel time — good enough to watch the whole
 system breathe.
 
-## API
+The estimation logic lives in [`docs/core.js`](docs/core.js), shared between
+the browser and the Node server.
+
+## API (local server only)
 
 - `GET /api/trains` — current estimated position of every train:
   line color, destination, direction, car count, delay, coordinates,

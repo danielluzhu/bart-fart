@@ -49,6 +49,7 @@
   <div id="map"></div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="core.js"></script>
 <script>
 const map = L.map('map', { zoomControl: true }).setView([37.72, -122.28], 11);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -60,7 +61,7 @@ const trainLayer = L.layerGroup().addTo(map);
 let network = null;
 
 function drawNetwork(net) {
-  const stn = Object.fromEntries(net.stations.map(s => [s.abbr, s]));
+  const stn = net.stations;
   // One polyline per line color (both directions share the same track).
   const seen = new Set();
   for (const r of net.routes) {
@@ -69,7 +70,7 @@ function drawNetwork(net) {
     const pts = r.stations.map(a => [stn[a].lat, stn[a].lon]);
     L.polyline(pts, { color: r.hexcolor, weight: 4, opacity: .8 }).addTo(map);
   }
-  for (const s of net.stations) {
+  for (const s of Object.values(net.stations)) {
     L.circleMarker([s.lat, s.lon], {
       radius: 3.5, color: '#333c44', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1,
     }).bindTooltip(s.name, { className: 'stn-tip', direction: 'top' }).addTo(map);
@@ -105,20 +106,40 @@ function drawTrains(data) {
     .join('');
   const when = new Date(data.updated).toLocaleTimeString();
   document.getElementById('status').textContent =
-    `${data.trains.length} trains · updated ${when}` + (data.error ? ' · ⚠ API error, showing last data' : '');
+    `${data.trains.length} trains · updated ${when}`;
+}
+
+const API_KEY = 'MW9S-E7SL-26DU-VV8V'; // BART's public demo key
+const api = BartCore.makeApi(API_KEY);
+async function getJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`BART API ${res.status}`);
+  return res.json();
+}
+
+// The static network data (stations, routes, travel times) changes rarely;
+// cache it in localStorage for a day to keep page loads fast.
+async function loadNetworkCached() {
+  try {
+    const c = JSON.parse(localStorage.getItem('bart-fart-network') || 'null');
+    if (c && Date.now() - c.at < 24 * 3600 * 1000) return c.network;
+  } catch (e) {}
+  const net = await BartCore.loadNetwork(getJSON, API_KEY);
+  try { localStorage.setItem('bart-fart-network', JSON.stringify({ at: Date.now(), network: net })); } catch (e) {}
+  return net;
 }
 
 async function refresh() {
   try {
-    const data = await (await fetch('/api/trains')).json();
-    if (data.updated) drawTrains(data);
+    const data = await getJSON(api('etd', { cmd: 'etd', orig: 'ALL' }));
+    drawTrains({ updated: new Date().toISOString(), trains: BartCore.estimateTrains(network, data.root) });
   } catch (e) {
-    document.getElementById('status').textContent = '⚠ lost connection to server';
+    document.getElementById('status').textContent = '⚠ could not reach the BART API';
   }
 }
 
 (async () => {
-  network = await (await fetch('/api/network')).json();
+  network = await loadNetworkCached();
   drawNetwork(network);
   await refresh();
   setInterval(refresh, 15000);
