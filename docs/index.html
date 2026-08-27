@@ -28,12 +28,20 @@
   .chip i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
   #map { flex: 1; background: #dfe3e8; }
   .leaflet-tile { filter: grayscale(.85) brightness(1.03); }
+  .train-zoom { width: 16px; height: 16px; transition: transform .2s; }
+  .train-marker:hover .train-zoom { transform: scale(1.3); }
+  .train-wrap { position: relative; width: 16px; height: 16px; }
   .train-dot {
     width: 16px; height: 16px; border-radius: 50%;
     border: 2.5px solid #fff; box-shadow: 0 0 6px rgba(0,0,0,.6);
-    transition: transform .2s;
   }
-  .train-marker:hover .train-dot { transform: scale(1.3); }
+  .train-nose {
+    position: absolute; top: -7px; left: 3px;
+    width: 0; height: 0;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-bottom: 7px solid #fff;
+    filter: drop-shadow(0 0 1.5px rgba(0,0,0,.7));
+  }
   .leaflet-popup-content { font-size: 13px; line-height: 1.5; }
   .leaflet-popup-content b { font-size: 14px; }
   .stn-tip { font-size: 12px; }
@@ -86,7 +94,8 @@ function drawTrains(data) {
     const icon = L.divIcon({
       className: 'train-marker',
       iconSize: [16, 16], iconAnchor: [8, 8],
-      html: `<div class="train-dot" style="background:${t.hexcolor}"></div>`,
+      html: `<div class="train-zoom"><div class="train-wrap" style="transform:rotate(${t.bearing}deg)">` +
+            `<div class="train-nose"></div><div class="train-dot" style="background:${t.hexcolor}"></div></div></div>`,
     });
     const where = t.atStation
       ? `At <b>${t.atStation}</b>`

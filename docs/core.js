@@ -36,6 +36,17 @@
     return s.length ? s[Math.floor(s.length / 2)] : null;
   };
 
+  // Compass bearing from a to b, degrees clockwise from north.
+  function bearingDeg(a, b) {
+    const rad = (d) => (d * Math.PI) / 180;
+    const dLon = rad(b.lon - a.lon);
+    const y = Math.sin(dLon) * Math.cos(rad(b.lat));
+    const x =
+      Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) -
+      Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(dLon);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
   // Load stations, routes, and timetable-derived inter-station travel times.
   async function loadNetwork(getJSON, apiKey) {
     const api = makeApi(apiKey);
@@ -167,6 +178,7 @@
           delayMin: Math.round(best.delay / 60),
           lat: a.lat + (b.lat - a.lat) * frac,
           lon: a.lon + (b.lon - a.lon) * frac,
+          bearing: Math.round(bearingDeg(a, b)),
           prevStation: a.name,
           nextStation: b.name,
           minutesToNext: Math.round((route.cumMin[i + 1] - pos) * 10) / 10,
