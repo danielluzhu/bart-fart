@@ -116,12 +116,29 @@
 
   .stn-tip {
     background: var(--panel) !important; color: var(--text) !important;
-    border: 1px solid var(--panel-border) !important; border-radius: 8px !important;
-    backdrop-filter: blur(10px);
-    font-size: 12px; font-family: inherit; padding: 4px 10px !important;
-    box-shadow: 0 6px 20px rgba(0,0,0,.5) !important;
+    border: 1px solid var(--panel-border) !important; border-radius: 12px !important;
+    backdrop-filter: blur(14px);
+    font-size: 12px; font-family: inherit; padding: 10px 12px !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,.55) !important;
   }
   .stn-tip::before { display: none; }
+  .board { min-width: 190px; }
+  .board-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .board-empty { color: var(--muted); }
+  .board-sec {
+    margin: 8px 0 3px; font-size: 10px; font-weight: 500;
+    letter-spacing: .16em; color: var(--muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .board-sec::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.1); }
+  .board-row { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+  .board-row i {
+    width: 8px; height: 8px; border-radius: 50%; flex: none;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .board-dest { flex: 1; padding-right: 10px; white-space: nowrap; }
+  .board-mins { color: var(--muted); white-space: nowrap; }
+  .board-mins b { color: var(--text); font-weight: 500; }
 
   .leaflet-popup-content-wrapper {
     background: var(--panel) !important; color: var(--text) !important;
@@ -225,10 +242,47 @@ function drawNetwork(net) {
   for (const s of Object.values(net.stations)) {
     L.circleMarker([s.lat, s.lon], {
       radius: 2.5, color: 'rgba(230, 240, 255, .85)', weight: 1.25,
-      fillColor: '#0b1017', fillOpacity: 1,
-    }).bindTooltip(s.name, { className: 'stn-tip', direction: 'top', offset: [0, -6] }).addTo(map);
+      fillColor: '#0b1017', fillOpacity: 1, interactive: false,
+    }).addTo(map);
+    // Separate invisible, larger hit target so the tiny bead is easy to hover.
+    L.circleMarker([s.lat, s.lon], { radius: 10, stroke: false, fillOpacity: 0 })
+      .bindTooltip(() => stationBoard(s), { className: 'stn-tip', direction: 'top', offset: [0, -8], opacity: 1 })
+      .addTo(map);
   }
   map.fitBounds(L.latLngBounds(Object.values(net.stations).map(s => [s.lat, s.lon])), { padding: [30, 30] });
+}
+
+// Live departure board shown when hovering a station: upcoming trains per
+// line and destination, grouped by direction.
+let etdByStation = {};
+function stationBoard(s) {
+  const secs = { North: new Map(), South: new Map() }; // "dest|hex" -> {dest, hex, mins[]}
+  for (const etd of etdByStation[s.abbr] || []) {
+    for (const est of BartCore.asArray(etd.estimate)) {
+      const mins = est.minutes === 'Leaving' ? 0 : Number(est.minutes);
+      if (!Number.isFinite(mins) || est.cancelflag === '1' || !secs[est.direction]) continue;
+      const key = `${etd.destination}|${est.hexcolor}`;
+      if (!secs[est.direction].has(key)) secs[est.direction].set(key, { dest: etd.destination, hex: est.hexcolor, mins: [] });
+      secs[est.direction].get(key).mins.push(mins);
+    }
+  }
+  let html = `<div class="board"><div class="board-title">${s.name}</div>`;
+  let any = false;
+  for (const dir of ['North', 'South']) {
+    const rows = [...secs[dir].values()].sort((a, b) => Math.min(...a.mins) - Math.min(...b.mins));
+    if (!rows.length) continue;
+    any = true;
+    html += `<div class="board-sec">${dir.toUpperCase()}BOUND</div>`;
+    for (const r of rows) {
+      const shown = r.mins.sort((a, b) => a - b).slice(0, 3);
+      const mins = shown.map(m => m === 0 ? '<b>now</b>' : `<b>${m}</b>`).join(' · ') +
+        (shown.some(m => m > 0) ? ' min' : '');
+      html += `<div class="board-row"><i style="background:${r.hex};color:${r.hex}"></i>` +
+        `<span class="board-dest">${r.dest}</span><span class="board-mins">${mins}</span></div>`;
+    }
+  }
+  if (!any) html += `<div class="board-empty">No trains expected</div>`;
+  return html + `</div>`;
 }
 
 function popupHtml(t) {
@@ -318,6 +372,8 @@ let network = null;
 async function refresh() {
   try {
     const data = await getJSON(api('etd', { cmd: 'etd', orig: 'ALL' }));
+    etdByStation = {};
+    for (const stn of BartCore.asArray(data.root.station)) etdByStation[stn.abbr] = BartCore.asArray(stn.etd);
     updateTrains(BartCore.estimateTrains(network, data.root));
   } catch (e) {
     document.getElementById('status').textContent = '⚠ could not reach the BART API';
