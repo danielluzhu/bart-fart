@@ -135,6 +135,26 @@
   }
   .leaflet-control-attribution a { color: var(--muted) !important; }
 
+  /* permanent labels for key stations (airports, termini) */
+  .stn-label {
+    background: none !important; border: none !important; box-shadow: none !important;
+    padding: 0 !important; margin: 0;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .05em;
+    color: #dce7f3;
+    text-shadow: 0 0 6px rgba(0, 0, 0, .95), 0 1px 3px rgba(0, 0, 0, .9);
+  }
+  .stn-label::before { display: none; }
+  .stn-label.air {
+    color: var(--accent);
+    text-shadow: 0 0 8px rgba(255, 210, 30, .45), 0 1px 3px rgba(0, 0, 0, .9);
+  }
+  body.view-day .stn-label {
+    color: #1c2836;
+    text-shadow: 0 0 5px rgba(255, 255, 255, .95), 0 1px 2px rgba(255, 255, 255, .9);
+  }
+  body.view-day .stn-label.air { color: #8a6500; }
+
   .stn-tip {
     background: var(--panel) !important; color: var(--text) !important;
     border: 1px solid var(--panel-border) !important; border-radius: 12px !important;
@@ -400,11 +420,34 @@ function drawNetwork(net) {
       }).addTo(map);
     });
   }
+  // Key stations get bigger beads and permanent labels: airports (by name)
+  // and line termini (first/last station of each route).
+  const termini = new Set();
+  for (const r of net.routes) {
+    termini.add(r.stations[0]);
+    termini.add(r.stations[r.stations.length - 1]);
+  }
+  const AIRPORT_SHORT = { SFIA: 'SFO', OAKL: 'OAK' };
   for (const s of Object.values(net.stations)) {
-    L.circleMarker([s.lat, s.lon], {
+    const isAirport = /airport/i.test(s.name);
+    const isKey = isAirport || termini.has(s.abbr);
+    const bead = L.circleMarker([s.lat, s.lon], isAirport ? {
+      radius: 4.5, color: '#ffd21e', weight: 2,
+      fillColor: '#0b1017', fillOpacity: 1, interactive: false,
+    } : isKey ? {
+      radius: 4, color: '#fff', weight: 1.75,
+      fillColor: '#0b1017', fillOpacity: 1, interactive: false,
+    } : {
       radius: 2.5, color: 'rgba(230, 240, 255, .85)', weight: 1.25,
       fillColor: '#0b1017', fillOpacity: 1, interactive: false,
     }).addTo(map);
+    if (isKey) {
+      const label = isAirport ? `✈ ${AIRPORT_SHORT[s.abbr] || s.name}` : s.name;
+      bead.bindTooltip(label, {
+        permanent: true, direction: 'right', offset: [7, 0], opacity: 1,
+        className: 'stn-label' + (isAirport ? ' air' : ''),
+      });
+    }
     // Separate invisible, larger hit target so the tiny bead is easy to hover.
     L.circleMarker([s.lat, s.lon], { radius: 10, stroke: false, fillOpacity: 0 })
       .bindTooltip(() => stationBoard(s), { className: 'stn-tip', direction: 'top', offset: [0, -8], opacity: 1 })
