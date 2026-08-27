@@ -18,7 +18,7 @@
     --text: #e6edf5;
     --muted: #8b98a9;
     --live: #34d399;
-    --accent: #ffd21e;
+    --accent: #0099d8; /* BART blue */
   }
   body.view-day {
     --panel: rgba(250, 252, 255, .82);
@@ -52,9 +52,20 @@
   #title-card { display: flex; align-items: center; gap: 14px; padding: 12px 18px; flex-wrap: wrap; }
   #title-card h1 {
     margin: 0; font-size: 20px; font-weight: 700; letter-spacing: .5px; color: var(--text);
+    display: flex; align-items: center;
   }
   #title-card h1 em { font-style: normal; color: var(--accent); }
-  body.view-day #title-card h1 em { color: #b58500; }
+  body.view-day #title-card h1 em { color: #0077b0; }
+  /* homage to the BART "ba" roundel */
+  .roundel {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 27px; height: 27px; border-radius: 50%; flex: none;
+    background: #0099d8; color: #fff;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-style: italic; font-weight: 700; font-size: 13px; letter-spacing: 0;
+    padding-right: 2px; margin-right: 10px;
+    box-shadow: 0 0 12px rgba(0, 153, 216, .55);
+  }
   #live-pill {
     display: flex; align-items: center; gap: 7px;
     font-size: 11px; font-weight: 500; letter-spacing: .18em; color: var(--live);
@@ -130,20 +141,20 @@
   #loading.done { opacity: 0; pointer-events: none; }
   #loading .radar {
     width: 64px; height: 64px; border-radius: 50%;
-    border: 2px solid rgba(255, 210, 30, .9);
+    border: 2px solid rgba(0, 153, 216, .9);
     position: relative;
     animation: radar 1.8s ease-out infinite;
   }
   #loading .radar::after {
     content: ''; position: absolute; inset: 22px; border-radius: 50%;
-    background: #ffd21e; box-shadow: 0 0 18px #ffd21e;
+    background: #0099d8; box-shadow: 0 0 18px #0099d8;
   }
   @keyframes radar {
-    0% { box-shadow: 0 0 0 0 rgba(255, 210, 30, .45); }
-    100% { box-shadow: 0 0 0 44px rgba(255, 210, 30, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(0, 153, 216, .45); }
+    100% { box-shadow: 0 0 0 44px rgba(0, 153, 216, 0); }
   }
   #loading h1 { font-size: 26px; margin: 0; letter-spacing: .5px; }
-  #loading h1 em { font-style: normal; color: #ffd21e; }
+  #loading h1 em { font-style: normal; color: #0099d8; }
   #loading p { margin: 0; color: #8b98a9; font-size: 14px; letter-spacing: .12em; }
 
   /* ---------- map furniture ---------- */
@@ -173,14 +184,14 @@
   }
   .stn-label::before { display: none; }
   .stn-label.air {
-    color: var(--accent);
-    text-shadow: 0 0 8px rgba(255, 210, 30, .45), 0 1px 3px rgba(0, 0, 0, .9);
+    color: #4fc3f7;
+    text-shadow: 0 0 8px rgba(0, 153, 216, .55), 0 1px 3px rgba(0, 0, 0, .9);
   }
   body.view-day .stn-label {
     color: #1c2836;
     text-shadow: 0 0 5px rgba(255, 255, 255, .95), 0 1px 2px rgba(255, 255, 255, .9);
   }
-  body.view-day .stn-label.air { color: #8a6500; }
+  body.view-day .stn-label.air { color: #0077b0; }
 
   .stn-tip {
     background: var(--panel) !important; color: var(--text) !important;
@@ -269,59 +280,59 @@
     position: fixed; inset: 0; z-index: 800; display: none;
     overflow: auto;
     background:
-      radial-gradient(120% 90% at 50% 0%, #2b2419 0%, #171310 45%, #0c0a08 100%);
-    color: #e8dcc0;
+      radial-gradient(120% 90% at 50% 0%, #12263a 0%, #0b1622 45%, #060b11 100%);
+    color: #dbe6f0;
     font-family: 'Oswald', 'Space Grotesk', sans-serif;
   }
   body.view-board #hall { display: block; }
   #hall-inner { max-width: 1060px; margin: 0 auto; padding: 96px 24px 48px; }
   #hall-head {
     text-align: center; margin-bottom: 26px;
-    border-top: 3px double #6f5f3f; border-bottom: 3px double #6f5f3f;
+    border-top: 3px double #2e4a63; border-bottom: 3px double #2e4a63;
     padding: 14px 0 16px;
   }
   #hall-head .arr {
-    font-size: 13px; letter-spacing: .55em; color: #b3a17c; text-indent: .55em;
+    font-size: 13px; letter-spacing: .55em; color: #7fa3c0; text-indent: .55em;
   }
   #hall-head h2 {
     margin: 6px 0 2px; font-size: 44px; font-weight: 600; letter-spacing: .14em;
-    color: #f4e9c9; text-indent: .14em;
-    text-shadow: 0 0 22px rgba(255, 190, 80, .25);
+    color: #eef5fb; text-indent: .14em;
+    text-shadow: 0 0 22px rgba(0, 153, 216, .35);
   }
   #hall-sub { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 8px; }
   #stn-pick {
     font-family: inherit; font-size: 16px; letter-spacing: .1em;
-    color: #ffc94d; background: #241d13; border: 1px solid #6f5f3f; border-radius: 6px;
+    color: #4fc3f7; background: #0e1d2c; border: 1px solid #2e4a63; border-radius: 6px;
     padding: 6px 12px; cursor: pointer;
   }
-  #stn-pick:focus { outline: 2px solid #ffc94d55; }
+  #stn-pick:focus { outline: 2px solid #0099d855; }
   #hall-clock {
-    font-size: 16px; letter-spacing: .18em; color: #b3a17c;
+    font-size: 16px; letter-spacing: .18em; color: #7fa3c0;
     font-variant-numeric: tabular-nums;
   }
   #flap-frame {
-    background: #100d0a; border: 1px solid #3a3223; border-radius: 10px;
+    background: #0a141e; border: 1px solid #24384c; border-radius: 10px;
     padding: 18px 20px 20px;
     box-shadow: 0 30px 80px rgba(0,0,0,.7), inset 0 0 60px rgba(0,0,0,.55);
   }
   .fcols {
     display: flex; gap: 8px; align-items: center;
     padding: 0 2px 10px; margin-bottom: 12px;
-    border-bottom: 1px solid #3a3223;
-    font-size: 12px; letter-spacing: .3em; color: #8f7f5c;
+    border-bottom: 1px solid #24384c;
+    font-size: 12px; letter-spacing: .3em; color: #6c8ba6;
   }
   .frow { display: flex; gap: 8px; align-items: center; padding: 5px 2px; }
   .fpill {
     width: 14px; height: 30px; border-radius: 3px; flex: none;
-    background: var(--c, #2a251c);
+    background: var(--c, #1b2733);
     box-shadow: 0 0 10px color-mix(in srgb, var(--c, transparent) 55%, transparent);
   }
   .fgroup { display: flex; gap: 3px; }
   .fcell {
     width: 26px; height: 34px; flex: none;
     display: flex; align-items: center; justify-content: center;
-    font-size: 21px; font-weight: 500; color: #f2e7c7;
-    background: linear-gradient(#3a352b 0%, #2b2720 48%, #221e17 52%, #191612 100%);
+    font-size: 21px; font-weight: 500; color: #eef4f9;
+    background: linear-gradient(#333a42 0%, #262c33 48%, #1e242a 52%, #161b20 100%);
     border-radius: 3px;
     position: relative;
     box-shadow: inset 0 -2px 4px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.05);
@@ -341,10 +352,10 @@
     width: 96px; height: 30px; flex: none;
     display: flex; align-items: center; justify-content: center; gap: 7px;
     font-size: 13px; font-weight: 500; letter-spacing: .18em; text-indent: .18em;
-    color: #ffc94d;
-    border: 1px solid #6f5f3f; border-radius: 999px;
-    background: rgba(255, 201, 77, .07);
-    text-shadow: 0 0 10px rgba(255, 201, 77, .35);
+    color: #4fc3f7;
+    border: 1px solid #2e4a63; border-radius: 999px;
+    background: rgba(0, 153, 216, .08);
+    text-shadow: 0 0 10px rgba(79, 195, 247, .35);
   }
   .fdir:empty { opacity: 0; }
   /* minutes: one wide flap plate, not per-digit cells */
@@ -354,7 +365,7 @@
   .sp { flex: 1; min-width: 6px; }
   #hall-foot {
     text-align: center; margin-top: 20px;
-    font-size: 11px; letter-spacing: .3em; color: #6f5f3f;
+    font-size: 11px; letter-spacing: .3em; color: #456580;
   }
   @media (max-width: 900px) {
     .fcell { width: 19px; height: 27px; font-size: 15px; }
@@ -373,7 +384,7 @@
 </div>
 <div id="hud">
   <div id="title-card" class="glass">
-    <h1>bart-<em>fart</em></h1>
+    <h1><span class="roundel">bf</span>bart-<em>fart</em></h1>
     <div id="live-pill"><i></i>LIVE</div>
     <div id="status">warming up…</div>
     <div id="views">
@@ -479,7 +490,7 @@ function drawNetwork(net) {
     const isAirport = /airport/i.test(s.name);
     const isKey = isAirport || termini.has(s.abbr);
     const bead = L.circleMarker([s.lat, s.lon], isAirport ? {
-      radius: 4.5, color: '#ffd21e', weight: 2,
+      radius: 4.5, color: '#0099d8', weight: 2,
       fillColor: '#0b1017', fillOpacity: 1, interactive: false,
     } : isKey ? {
       radius: 4, color: '#fff', weight: 1.75,
@@ -711,7 +722,7 @@ function renderHall() {
   const rowEls = document.querySelectorAll('#frows .frow');
   rowEls.forEach((rowEl, i) => {
     const r = rows[i];
-    rowEl.querySelector('.fpill').style.setProperty('--c', r ? r.hex : '#2a251c');
+    rowEl.querySelector('.fpill').style.setProperty('--c', r ? r.hex : '#1b2733');
     setGroup(rowEl.querySelector('.dest'), r ? r.dest : '', DEST_W, false);
     rowEl.querySelector('.fdir').textContent = r ? (r.dir === 'N' ? '▲ NORTH' : '▼ SOUTH') : '';
     setCell(rowEl.querySelector('.fmin'), r ? (r.mins === 0 ? 'NOW' : String(r.mins)) : ' ');
