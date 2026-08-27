@@ -4,6 +4,13 @@ A live map of every BART train in the system.
 
 **Live site: https://danielluzhu.github.io/bart-fart/**
 
+Three interfaces, switchable from the header (your choice is remembered):
+
+- **NEON** — dark mission-control map with glowing trains
+- **DAY** — the same map on a light basemap
+- **DEPARTURES** — a vintage split-flap station board (pick any station,
+  watch the flaps clatter as ETAs change)
+
 ## Run it
 
 The site is fully static (the browser talks to the BART API directly, which

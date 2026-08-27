@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚇</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   :root {
@@ -18,11 +18,21 @@
     --text: #e6edf5;
     --muted: #8b98a9;
     --live: #34d399;
+    --accent: #ffd21e;
+  }
+  body.view-day {
+    --panel: rgba(250, 252, 255, .82);
+    --panel-border: rgba(20, 40, 70, .12);
+    --text: #17222e;
+    --muted: #5d6b7a;
+    --live: #059669;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; background: var(--bg); }
   body { font-family: 'Space Grotesk', -apple-system, 'Segoe UI', sans-serif; }
   #map { position: fixed; inset: 0; background: var(--bg); }
+  body.view-day #map { background: #dfe3e8; }
+  .tiles-day { filter: grayscale(.85) brightness(1.03); }
 
   /* ---------- floating glass header ---------- */
   #hud {
@@ -38,11 +48,13 @@
     -webkit-backdrop-filter: blur(14px) saturate(1.3);
     box-shadow: 0 8px 32px rgba(0, 0, 0, .45);
   }
-  #title-card { display: flex; align-items: center; gap: 14px; padding: 12px 18px; }
+  body.view-day .glass { box-shadow: 0 8px 28px rgba(30, 50, 80, .18); }
+  #title-card { display: flex; align-items: center; gap: 14px; padding: 12px 18px; flex-wrap: wrap; }
   #title-card h1 {
     margin: 0; font-size: 20px; font-weight: 700; letter-spacing: .5px; color: var(--text);
   }
-  #title-card h1 em { font-style: normal; color: #ffd21e; }
+  #title-card h1 em { font-style: normal; color: var(--accent); }
+  body.view-day #title-card h1 em { color: #b58500; }
   #live-pill {
     display: flex; align-items: center; gap: 7px;
     font-size: 11px; font-weight: 500; letter-spacing: .18em; color: var(--live);
@@ -59,12 +71,20 @@
   }
   #status { font-size: 13px; color: var(--muted); white-space: nowrap; }
   #status b { color: var(--text); font-weight: 500; }
+  #views { display: flex; gap: 2px; background: rgba(128,128,128,.14); border-radius: 999px; padding: 3px; }
+  #views button {
+    font-family: inherit; font-size: 11px; font-weight: 500; letter-spacing: .12em;
+    color: var(--muted); background: none; border: none; border-radius: 999px;
+    padding: 4px 12px; cursor: pointer;
+  }
+  #views button.on { color: var(--text); background: var(--panel); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
   #lines { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 14px; }
+  body.view-board #lines { display: none; }
   .chip {
     display: inline-flex; align-items: center; gap: 7px;
     font-size: 12px; font-weight: 500; color: var(--text);
-    background: rgba(255, 255, 255, .05);
-    border: 1px solid rgba(255, 255, 255, .07);
+    background: rgba(128, 128, 128, .09);
+    border: 1px solid var(--panel-border);
     border-radius: 999px; padding: 4px 11px;
   }
   .chip i {
@@ -77,7 +97,7 @@
   #loading {
     position: fixed; inset: 0; z-index: 2000;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
-    background: var(--bg); color: var(--text);
+    background: #0a0e14; color: #e6edf5;
     transition: opacity .8s;
   }
   #loading.done { opacity: 0; pointer-events: none; }
@@ -97,11 +117,12 @@
   }
   #loading h1 { font-size: 26px; margin: 0; letter-spacing: .5px; }
   #loading h1 em { font-style: normal; color: #ffd21e; }
-  #loading p { margin: 0; color: var(--muted); font-size: 14px; letter-spacing: .12em; }
+  #loading p { margin: 0; color: #8b98a9; font-size: 14px; letter-spacing: .12em; }
 
   /* ---------- map furniture ---------- */
   .leaflet-container { font-family: inherit; }
   .leaflet-overlay-pane svg { filter: drop-shadow(0 0 5px rgba(0, 0, 0, .9)); }
+  body.view-day .leaflet-overlay-pane svg { filter: drop-shadow(0 1px 3px rgba(30, 50, 80, .35)); }
   .leaflet-control-zoom { border: none !important; box-shadow: 0 8px 24px rgba(0,0,0,.5) !important; }
   .leaflet-control-zoom a {
     background: var(--panel) !important; color: var(--text) !important;
@@ -109,10 +130,10 @@
     backdrop-filter: blur(10px);
   }
   .leaflet-control-attribution {
-    background: rgba(10, 14, 20, .6) !important; color: #5c6875 !important;
+    background: var(--panel) !important; color: var(--muted) !important;
     backdrop-filter: blur(6px); font-size: 10px !important;
   }
-  .leaflet-control-attribution a { color: #7d8b9c !important; }
+  .leaflet-control-attribution a { color: var(--muted) !important; }
 
   .stn-tip {
     background: var(--panel) !important; color: var(--text) !important;
@@ -130,7 +151,7 @@
     letter-spacing: .16em; color: var(--muted);
     display: flex; align-items: center; gap: 6px;
   }
-  .board-sec::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.1); }
+  .board-sec::after { content: ''; flex: 1; height: 1px; background: rgba(128,128,128,.25); }
   .board-row { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
   .board-row i {
     width: 8px; height: 8px; border-radius: 50%; flex: none;
@@ -147,7 +168,7 @@
     backdrop-filter: blur(14px);
     box-shadow: 0 12px 40px rgba(0,0,0,.55) !important;
   }
-  .leaflet-popup-tip { background: rgba(13, 18, 26, .9) !important; }
+  .leaflet-popup-tip { background: var(--panel) !important; }
   .leaflet-popup-close-button { color: var(--muted) !important; }
   .leaflet-popup-content { font-size: 13px; line-height: 1.6; margin: 14px 18px !important; font-family: inherit; }
   .popup-dest { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
@@ -176,6 +197,89 @@
     border-bottom: 7px solid #fff;
     filter: drop-shadow(0 0 2px rgba(0, 0, 0, .8));
   }
+
+  /* ---------- split-flap departures hall ---------- */
+  #hall {
+    position: fixed; inset: 0; z-index: 800; display: none;
+    overflow: auto;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #2b2419 0%, #171310 45%, #0c0a08 100%);
+    color: #e8dcc0;
+    font-family: 'Oswald', 'Space Grotesk', sans-serif;
+  }
+  body.view-board #hall { display: block; }
+  #hall-inner { max-width: 1060px; margin: 0 auto; padding: 96px 24px 48px; }
+  #hall-head {
+    text-align: center; margin-bottom: 26px;
+    border-top: 3px double #6f5f3f; border-bottom: 3px double #6f5f3f;
+    padding: 14px 0 16px;
+  }
+  #hall-head .arr {
+    font-size: 13px; letter-spacing: .55em; color: #b3a17c; text-indent: .55em;
+  }
+  #hall-head h2 {
+    margin: 6px 0 2px; font-size: 44px; font-weight: 600; letter-spacing: .14em;
+    color: #f4e9c9; text-indent: .14em;
+    text-shadow: 0 0 22px rgba(255, 190, 80, .25);
+  }
+  #hall-sub { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 8px; }
+  #stn-pick {
+    font-family: inherit; font-size: 16px; letter-spacing: .1em;
+    color: #ffc94d; background: #241d13; border: 1px solid #6f5f3f; border-radius: 6px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  #stn-pick:focus { outline: 2px solid #ffc94d55; }
+  #hall-clock {
+    font-size: 16px; letter-spacing: .18em; color: #b3a17c;
+    font-variant-numeric: tabular-nums;
+  }
+  #flap-frame {
+    background: #100d0a; border: 1px solid #3a3223; border-radius: 10px;
+    padding: 18px 20px 20px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7), inset 0 0 60px rgba(0,0,0,.55);
+  }
+  .fcols {
+    display: flex; gap: 8px; align-items: center;
+    padding: 0 2px 10px; margin-bottom: 12px;
+    border-bottom: 1px solid #3a3223;
+    font-size: 12px; letter-spacing: .3em; color: #8f7f5c;
+  }
+  .frow { display: flex; gap: 8px; align-items: center; padding: 5px 2px; }
+  .fpill {
+    width: 14px; height: 30px; border-radius: 3px; flex: none;
+    background: var(--c, #2a251c);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--c, transparent) 55%, transparent);
+  }
+  .fgroup { display: flex; gap: 3px; }
+  .fcell {
+    width: 26px; height: 34px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 21px; font-weight: 500; color: #f2e7c7;
+    background: linear-gradient(#3a352b 0%, #2b2720 48%, #221e17 52%, #191612 100%);
+    border-radius: 3px;
+    position: relative;
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.05);
+  }
+  .fcell::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+    background: rgba(0, 0, 0, .75);
+  }
+  .fcell.flipping { animation: flap .09s linear; }
+  @keyframes flap {
+    0% { transform: scaleY(1); filter: brightness(1); }
+    50% { transform: scaleY(.12); filter: brightness(1.6); }
+    100% { transform: scaleY(1); filter: brightness(1); }
+  }
+  .sp { flex: 1; min-width: 6px; }
+  #hall-foot {
+    text-align: center; margin-top: 20px;
+    font-size: 11px; letter-spacing: .3em; color: #6f5f3f;
+  }
+  @media (max-width: 900px) {
+    .fcell { width: 19px; height: 27px; font-size: 15px; }
+    #hall-head h2 { font-size: 30px; }
+    #hall-inner { padding-top: 120px; }
+  }
 </style>
 </head>
 <body>
@@ -189,25 +293,66 @@
     <h1>bart-<em>fart</em></h1>
     <div id="live-pill"><i></i>LIVE</div>
     <div id="status">warming up…</div>
+    <div id="views">
+      <button data-v="neon">NEON</button>
+      <button data-v="day">DAY</button>
+      <button data-v="board">DEPARTURES</button>
+    </div>
   </div>
   <div id="lines" class="glass" hidden></div>
 </div>
 <div id="map"></div>
+<div id="hall">
+  <div id="hall-inner">
+    <div id="hall-head">
+      <div class="arr">SAN FRANCISCO BAY AREA RAPID TRANSIT</div>
+      <h2>DEPARTURES</h2>
+      <div id="hall-sub">
+        <select id="stn-pick" aria-label="Station"></select>
+        <div id="hall-clock">--:--:--</div>
+      </div>
+    </div>
+    <div id="flap-frame">
+      <div class="fcols"></div>
+      <div id="frows"></div>
+    </div>
+    <div id="hall-foot">LIVE FROM API.BART.GOV · UPDATES EVERY 15 SECONDS</div>
+  </div>
+</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-polylineoffset@1.1.1/leaflet.polylineoffset.js"></script>
 <script src="core.js"></script>
 <script>
+/* ================= map setup ================= */
 const map = L.map('map', { zoomControl: false, zoomSnap: .5 }).setView([37.72, -122.28], 11);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-  attribution: 'Esri &copy; OpenStreetMap contributors | data: BART',
-  maxZoom: 16,
-}).addTo(map);
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+const tilesNeon = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Esri &copy; OpenStreetMap contributors | data: BART', maxZoom: 16,
+});
+const tilesNeonRef = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
   maxZoom: 16, opacity: .75,
-}).addTo(map);
+});
+const tilesDay = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors | data: BART', maxZoom: 18, className: 'tiles-day',
+});
 
-// Fixed drawing order so parallel lines stack consistently along a corridor.
+/* ================= view switching ================= */
+const VIEWS = ['neon', 'day', 'board'];
+let view = null;
+function applyView(v) {
+  if (!VIEWS.includes(v)) v = 'neon';
+  view = v;
+  document.body.className = 'view-' + v;
+  document.querySelectorAll('#views button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const wantDay = v === 'day';
+  if (wantDay) { map.removeLayer(tilesNeon); map.removeLayer(tilesNeonRef); tilesDay.addTo(map); }
+  else { map.removeLayer(tilesDay); tilesNeon.addTo(map); tilesNeonRef.addTo(map); }
+  try { localStorage.setItem('bart-fart-view', v); } catch (e) {}
+  if (v === 'board') renderHall();
+}
+document.querySelectorAll('#views button').forEach(b => b.onclick = () => applyView(b.dataset.v));
+
+/* ================= network drawing ================= */
 const COLOR_ORDER = ['YELLOW', 'ORANGE', 'GREEN', 'RED', 'BLUE', 'GREY'];
 const LINE_SPACING = 4; // px between parallel lines
 
@@ -216,13 +361,12 @@ function drawNetwork(net) {
   // Group track segments (station pairs) by the set of line colors serving
   // them, then draw one polyline per color per segment, offset sideways so
   // shared corridors (Market St, the East Bay trunk) show every line.
-  const segs = new Map(); // "A|B" -> { a, b, colors: Map<color, hexcolor> }
+  const segs = new Map();
   for (const r of net.routes) {
     for (let i = 1; i < r.stations.length; i++) {
       let [a, b] = [r.stations[i - 1], r.stations[i]];
       if (a === b) continue;
-      // Draw every segment south-to-north so a color's sideways offset stays
-      // on the same side of the corridor regardless of route direction.
+      // South-to-north so a color's sideways offset keeps its side of the corridor.
       if (stn[a].lat > stn[b].lat) [a, b] = [b, a];
       const key = `${a}|${b}`;
       if (!segs.has(key)) segs.set(key, { a, b, colors: new Map() });
@@ -249,14 +393,25 @@ function drawNetwork(net) {
       .bindTooltip(() => stationBoard(s), { className: 'stn-tip', direction: 'top', offset: [0, -8], opacity: 1 })
       .addTo(map);
   }
-  map.fitBounds(L.latLngBounds(Object.values(net.stations).map(s => [s.lat, s.lon])), { padding: [30, 30] });
+  fitAll();
 }
 
-// Live departure board shown when hovering a station: upcoming trains per
-// line and destination, grouped by direction.
+// fitBounds on a zero-size container clamps to max zoom, so wait for real
+// dimensions (e.g. the page loading in a hidden or not-yet-sized tab).
+let fitted = false;
+function fitAll() {
+  if (!network || fitted) return;
+  const sz = map.getSize();
+  if (!sz.x || !sz.y) return;
+  map.fitBounds(L.latLngBounds(Object.values(network.stations).map(s => [s.lat, s.lon])), { padding: [30, 30] });
+  fitted = true;
+}
+map.on('resize', fitAll);
+
+/* ================= station hover board ================= */
 let etdByStation = {};
 function stationBoard(s) {
-  const secs = { North: new Map(), South: new Map() }; // "dest|hex" -> {dest, hex, mins[]}
+  const secs = { North: new Map(), South: new Map() };
   for (const etd of etdByStation[s.abbr] || []) {
     for (const est of BartCore.asArray(etd.estimate)) {
       const mins = est.minutes === 'Leaving' ? 0 : Number(est.minutes);
@@ -285,6 +440,99 @@ function stationBoard(s) {
   return html + `</div>`;
 }
 
+/* ================= split-flap departures hall ================= */
+const FLAPCHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/. ';
+const HALL_ROWS = 10, DEST_W = 18, MIN_W = 3;
+let hallStation = 'EMBR';
+try { hallStation = localStorage.getItem('bart-fart-hall-stn') || 'EMBR'; } catch (e) {}
+
+function buildHall(net) {
+  const pick = document.getElementById('stn-pick');
+  pick.innerHTML = Object.values(net.stations)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(s => `<option value="${s.abbr}">${s.name.toUpperCase()}</option>`)
+    .join('');
+  if (!net.stations[hallStation]) hallStation = 'EMBR';
+  pick.value = hallStation;
+  pick.onchange = () => {
+    hallStation = pick.value;
+    try { localStorage.setItem('bart-fart-hall-stn', hallStation); } catch (e) {}
+    renderHall();
+  };
+
+  const cols = document.querySelector('.fcols');
+  cols.innerHTML =
+    `<span style="width:14px"></span>` +
+    `<span style="flex:1">DESTINATION</span>` +
+    `<span style="width:${26 + 3}px">DIR</span>` +
+    `<span style="width:${MIN_W * 29 - 3}px;text-align:right">MIN</span>`;
+
+  const rowsEl = document.getElementById('frows');
+  rowsEl.innerHTML = '';
+  for (let r = 0; r < HALL_ROWS; r++) {
+    const row = document.createElement('div');
+    row.className = 'frow';
+    row.innerHTML =
+      `<span class="fpill"></span>` +
+      `<span class="fgroup dest">${'<span class="fcell"> </span>'.repeat(DEST_W)}</span>` +
+      `<span class="sp"></span>` +
+      `<span class="fgroup dir"><span class="fcell"> </span></span>` +
+      `<span class="fgroup min">${'<span class="fcell"> </span>'.repeat(MIN_W)}</span>`;
+    rowsEl.appendChild(row);
+  }
+  setInterval(() => {
+    document.getElementById('hall-clock').textContent =
+      new Date().toLocaleTimeString([], { hour12: false });
+  }, 1000);
+}
+
+function setCell(el, ch) {
+  ch = (ch || ' ').toUpperCase();
+  if (el.dataset.ch === ch) return;
+  el.dataset.ch = ch;
+  clearInterval(el._t);
+  let steps = 2 + Math.floor(Math.random() * 4);
+  el._t = setInterval(() => {
+    el.classList.remove('flipping');
+    void el.offsetWidth;
+    el.classList.add('flipping');
+    if (--steps <= 0) {
+      clearInterval(el._t);
+      el.textContent = ch;
+    } else {
+      el.textContent = FLAPCHARS[Math.floor(Math.random() * FLAPCHARS.length)];
+    }
+  }, 80 + Math.random() * 50);
+}
+
+function setGroup(groupEl, text, width, alignRight) {
+  text = text.toUpperCase().slice(0, width);
+  text = alignRight ? text.padStart(width) : text.padEnd(width);
+  const cells = groupEl.children;
+  for (let i = 0; i < width; i++) setCell(cells[i], text[i]);
+}
+
+function renderHall() {
+  const rows = [];
+  for (const etd of etdByStation[hallStation] || []) {
+    for (const est of BartCore.asArray(etd.estimate)) {
+      const mins = est.minutes === 'Leaving' ? 0 : Number(est.minutes);
+      if (!Number.isFinite(mins) || est.cancelflag === '1') continue;
+      rows.push({ dest: etd.destination, hex: est.hexcolor, dir: est.direction[0], mins });
+    }
+  }
+  rows.sort((a, b) => a.mins - b.mins);
+  const rowEls = document.querySelectorAll('#frows .frow');
+  rowEls.forEach((rowEl, i) => {
+    const r = rows[i];
+    rowEl.querySelector('.fpill').style.setProperty('--c', r ? r.hex : '#2a251c');
+    setGroup(rowEl.querySelector('.dest'), r ? r.dest : '', DEST_W, false);
+    setGroup(rowEl.querySelector('.dir'), r ? r.dir : '', 1, false);
+    setGroup(rowEl.querySelector('.min'), r ? (r.mins === 0 ? 'NOW' : String(r.mins)) : '', MIN_W, true);
+  });
+}
+
+/* ================= live trains ================= */
 function popupHtml(t) {
   const where = t.atStation
     ? `At <b>${t.atStation}</b>`
@@ -308,7 +556,7 @@ function makeMarker(t) {
 
 // Markers are matched to the previous refresh's trains (same line + direction,
 // nearest position) so they glide to their new spot instead of jumping.
-let live = []; // [{ marker, train }]
+let live = [];
 function updateTrains(trains) {
   const unmatched = new Set(live);
   const next = [];
@@ -348,6 +596,7 @@ function updateTrains(trains) {
   document.getElementById('status').innerHTML = `<b>${trains.length}</b> trains · ${when}`;
 }
 
+/* ================= data loop ================= */
 const API_KEY = 'MW9S-E7SL-26DU-VV8V'; // BART's public demo key
 const api = BartCore.makeApi(API_KEY);
 async function getJSON(url) {
@@ -375,14 +624,19 @@ async function refresh() {
     etdByStation = {};
     for (const stn of BartCore.asArray(data.root.station)) etdByStation[stn.abbr] = BartCore.asArray(stn.etd);
     updateTrains(BartCore.estimateTrains(network, data.root));
+    if (view === 'board') renderHall();
   } catch (e) {
     document.getElementById('status').textContent = '⚠ could not reach the BART API';
   }
 }
 
 (async () => {
+  let saved = 'neon';
+  try { saved = localStorage.getItem('bart-fart-view') || 'neon'; } catch (e) {}
+  applyView(saved);
   network = await loadNetworkCached();
   drawNetwork(network);
+  buildHall(network);
   await refresh();
   document.getElementById('loading').classList.add('done');
   setInterval(refresh, 15000);
