@@ -78,6 +78,33 @@
     padding: 4px 12px; cursor: pointer;
   }
   #views button.on { color: var(--text); background: var(--panel); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  #locate {
+    font-family: inherit; font-size: 11px; font-weight: 500; letter-spacing: .12em;
+    color: var(--text); background: rgba(128, 128, 128, .14);
+    border: 1px solid var(--panel-border); border-radius: 999px;
+    padding: 5px 12px; cursor: pointer;
+  }
+  #locate:hover { background: rgba(128, 128, 128, .24); }
+  #locate.busy { color: var(--muted); cursor: wait; animation: locating 1s ease-in-out infinite; }
+  @keyframes locating { 50% { opacity: .4; } }
+  body.view-board #locate { display: none; }
+
+  /* the "you are here" dot */
+  .you-marker { z-index: 950 !important; }
+  .you-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #38bdf8; border: 2.5px solid #fff;
+    box-shadow: 0 0 12px #38bdf8;
+  }
+  .you-dot::after {
+    content: ''; position: absolute; inset: -3px; border-radius: 50%;
+    border: 2px solid rgba(56, 189, 248, .8);
+    animation: you-pulse 2s ease-out infinite;
+  }
+  @keyframes you-pulse {
+    0% { transform: scale(.6); opacity: 1; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
   #lines { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 14px; }
   body.view-board #lines { display: none; }
   .chip {
@@ -211,6 +238,8 @@
     width: 8px; height: 8px; border-radius: 50%; display: inline-block;
     box-shadow: 0 0 6px currentColor;
   }
+  .popup-you { margin-top: 7px; font-size: 11px; letter-spacing: .04em; color: #38bdf8; }
+  body.view-day .popup-you { color: #0077b0; }
   .popup-sub b { color: var(--text); font-weight: 500; }
   .popup-late { color: #fb923c; }
 
@@ -352,6 +381,7 @@
       <button data-v="day">DAY</button>
       <button data-v="board">DEPARTURES</button>
     </div>
+    <button id="locate" title="Zoom to my location and the nearest station">📍 NEAR ME</button>
   </div>
   <div id="lines" class="glass" hidden></div>
 </div>
@@ -485,6 +515,47 @@ function fitAll() {
 }
 map.on('resize', fitAll);
 
+/* ================= locate me ================= */
+let you = null; // { lat, lon, nearestAbbr, km }
+let youMarker = null;
+const locateBtn = document.getElementById('locate');
+locateBtn.onclick = () => locate();
+
+function locate() {
+  if (!network) return;
+  if (!('geolocation' in navigator)) {
+    document.getElementById('status').textContent = '⚠ geolocation not supported';
+    return;
+  }
+  locateBtn.classList.add('busy');
+  navigator.geolocation.getCurrentPosition((pos) => {
+    locateBtn.classList.remove('busy');
+    const here = [pos.coords.latitude, pos.coords.longitude];
+    let best = null, bestM = Infinity;
+    for (const s of Object.values(network.stations)) {
+      const d = map.distance(here, [s.lat, s.lon]);
+      if (d < bestM) { bestM = d; best = s; }
+    }
+    you = { lat: here[0], lon: here[1], nearestAbbr: best.abbr, km: bestM / 1000 };
+    if (youMarker) youMarker.remove();
+    youMarker = L.marker(here, {
+      icon: L.divIcon({ className: 'you-marker', iconSize: [14, 14], iconAnchor: [7, 7], html: '<div class="you-dot"></div>' }),
+      interactive: false, zIndexOffset: 700,
+    }).addTo(map);
+    if (view === 'board') applyView('neon'); // the map has the answer, so show it
+    stnPopupStation = best;
+    stnPopup = L.popup({ offset: [0, -6], autoPan: false })
+      .setLatLng([best.lat, best.lon]).setContent(stationPopupHtml(best)).openOn(map);
+    map.flyToBounds(L.latLngBounds([here, [best.lat, best.lon]]), {
+      paddingTopLeft: [80, 240], paddingBottomRight: [80, 80], maxZoom: 14, // headroom for the popup under the HUD
+    });
+  }, (err) => {
+    locateBtn.classList.remove('busy');
+    document.getElementById('status').textContent =
+      '⚠ ' + (err.code === 1 ? 'location permission denied' : 'could not get your location');
+  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+}
+
 /* ================= station click info ================= */
 // Clicking anywhere near a station (within ~80 px) opens an info popup for
 // the nearest one: name, code, lines served, and live departures.
@@ -512,8 +583,11 @@ function stationPopupHtml(s) {
     .sort(([a], [b]) => COLOR_ORDER.indexOf(a) - COLOR_ORDER.indexOf(b))
     .map(([c, hex]) => `<span class="popup-line"><i style="background:${hex};color:${hex}"></i>${c}</span>`)
     .join('');
+  const youRow = you && you.nearestAbbr === s.abbr
+    ? `<div class="popup-you">📍 nearest to you · ${you.km < 1 ? Math.round(you.km * 1000) + ' m' : you.km.toFixed(1) + ' km'} away</div>`
+    : '';
   return stationBoard(s, s.abbr) +
-    `<div class="popup-lines">${chips || '<span class="board-empty">No lines</span>'}</div>`;
+    `<div class="popup-lines">${chips || '<span class="board-empty">No lines</span>'}</div>` + youRow;
 }
 
 /* ================= station hover board ================= */
@@ -750,6 +824,11 @@ async function refresh() {
   network = await loadNetworkCached();
   drawNetwork(network);
   buildHall(network);
+  // If the user already granted location, zoom to them without re-prompting.
+  try {
+    const p = await navigator.permissions?.query({ name: 'geolocation' });
+    if (p?.state === 'granted') locate();
+  } catch (e) {}
   await refresh();
   document.getElementById('loading').classList.add('done');
   setInterval(refresh, 15000);
