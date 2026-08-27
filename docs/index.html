@@ -57,6 +57,7 @@
   <div id="map"></div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-polylineoffset@1.1.1/leaflet.polylineoffset.js"></script>
 <script src="core.js"></script>
 <script>
 const map = L.map('map', { zoomControl: true }).setView([37.72, -122.28], 11);
@@ -68,15 +69,37 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const trainLayer = L.layerGroup().addTo(map);
 let network = null;
 
+// Fixed drawing order so parallel lines stack consistently along a corridor.
+const COLOR_ORDER = ['YELLOW', 'ORANGE', 'GREEN', 'RED', 'BLUE', 'GREY'];
+const LINE_SPACING = 4; // px between parallel lines
+
 function drawNetwork(net) {
   const stn = net.stations;
-  // One polyline per line color (both directions share the same track).
-  const seen = new Set();
+  // Group track segments (station pairs) by the set of line colors serving
+  // them, then draw one polyline per color per segment, offset sideways so
+  // shared corridors (Market St, the East Bay trunk) show every line.
+  const segs = new Map(); // "A|B" -> { a, b, colors: Map<color, hexcolor> }
   for (const r of net.routes) {
-    if (seen.has(r.color)) continue;
-    seen.add(r.color);
-    const pts = r.stations.map(a => [stn[a].lat, stn[a].lon]);
-    L.polyline(pts, { color: r.hexcolor, weight: 4, opacity: .8 }).addTo(map);
+    for (let i = 1; i < r.stations.length; i++) {
+      let [a, b] = [r.stations[i - 1], r.stations[i]];
+      if (a === b) continue;
+      // Draw every segment south-to-north so a color's sideways offset stays
+      // on the same side of the corridor regardless of route direction.
+      if (stn[a].lat > stn[b].lat) [a, b] = [b, a];
+      const key = `${a}|${b}`;
+      if (!segs.has(key)) segs.set(key, { a, b, colors: new Map() });
+      segs.get(key).colors.set(r.color, r.hexcolor);
+    }
+  }
+  for (const seg of segs.values()) {
+    const colors = [...seg.colors.keys()].sort((x, y) => COLOR_ORDER.indexOf(x) - COLOR_ORDER.indexOf(y));
+    colors.forEach((color, i) => {
+      const pts = [[stn[seg.a].lat, stn[seg.a].lon], [stn[seg.b].lat, stn[seg.b].lon]];
+      L.polyline(pts, {
+        color: seg.colors.get(color), weight: 3, opacity: .9,
+        offset: (i - (colors.length - 1) / 2) * LINE_SPACING,
+      }).addTo(map);
+    });
   }
   for (const s of Object.values(net.stations)) {
     L.circleMarker([s.lat, s.lon], {
