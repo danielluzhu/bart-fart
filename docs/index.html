@@ -194,6 +194,23 @@
   .popup-dest { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .popup-dest i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px currentColor; flex: none; }
   .popup-sub { color: var(--muted); }
+  .board-code {
+    margin-left: 8px; font-size: 10px; font-weight: 500; letter-spacing: .12em;
+    color: var(--muted); border: 1px solid var(--panel-border); border-radius: 5px;
+    padding: 1px 5px; vertical-align: 1px;
+  }
+  .popup-lines {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(128,128,128,.25);
+  }
+  .popup-line {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 500; letter-spacing: .1em; color: var(--muted);
+  }
+  .popup-line i {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+    box-shadow: 0 0 6px currentColor;
+  }
   .popup-sub b { color: var(--text); font-weight: 500; }
   .popup-late { color: #fb923c; }
 
@@ -468,9 +485,40 @@ function fitAll() {
 }
 map.on('resize', fitAll);
 
+/* ================= station click info ================= */
+// Clicking anywhere near a station (within ~80 px) opens an info popup for
+// the nearest one: name, code, lines served, and live departures.
+let stnPopup = null, stnPopupStation = null;
+map.on('click', (e) => {
+  if (!network) return;
+  const pt = map.latLngToContainerPoint(e.latlng);
+  let best = null, bestPx = Infinity;
+  for (const s of Object.values(network.stations)) {
+    const d = pt.distanceTo(map.latLngToContainerPoint([s.lat, s.lon]));
+    if (d < bestPx) { bestPx = d; best = s; }
+  }
+  if (!best || bestPx > 80) return;
+  stnPopupStation = best;
+  stnPopup = L.popup({ offset: [0, -6] })
+    .setLatLng([best.lat, best.lon])
+    .setContent(stationPopupHtml(best))
+    .openOn(map);
+});
+
+function stationPopupHtml(s) {
+  const colors = new Map();
+  for (const r of network.routes) if (r.stations.includes(s.abbr)) colors.set(r.color, r.hexcolor);
+  const chips = [...colors.entries()]
+    .sort(([a], [b]) => COLOR_ORDER.indexOf(a) - COLOR_ORDER.indexOf(b))
+    .map(([c, hex]) => `<span class="popup-line"><i style="background:${hex};color:${hex}"></i>${c}</span>`)
+    .join('');
+  return stationBoard(s, s.abbr) +
+    `<div class="popup-lines">${chips || '<span class="board-empty">No lines</span>'}</div>`;
+}
+
 /* ================= station hover board ================= */
 let etdByStation = {};
-function stationBoard(s) {
+function stationBoard(s, code) {
   const secs = { North: new Map(), South: new Map() };
   for (const etd of etdByStation[s.abbr] || []) {
     for (const est of BartCore.asArray(etd.estimate)) {
@@ -481,7 +529,8 @@ function stationBoard(s) {
       secs[est.direction].get(key).mins.push(mins);
     }
   }
-  let html = `<div class="board"><div class="board-title">${s.name}</div>`;
+  let html = `<div class="board"><div class="board-title">${s.name}` +
+    (code ? `<span class="board-code">${code}</span>` : '') + `</div>`;
   let any = false;
   for (const dir of ['North', 'South']) {
     const rows = [...secs[dir].values()].sort((a, b) => Math.min(...a.mins) - Math.min(...b.mins));
@@ -688,6 +737,7 @@ async function refresh() {
     for (const stn of BartCore.asArray(data.root.station)) etdByStation[stn.abbr] = BartCore.asArray(stn.etd);
     updateTrains(BartCore.estimateTrains(network, data.root));
     if (view === 'board') renderHall();
+    if (stnPopup && stnPopup.isOpen()) stnPopup.setContent(stationPopupHtml(stnPopupStation));
   } catch (e) {
     document.getElementById('status').textContent = '⚠ could not reach the BART API';
   }
