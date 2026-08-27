@@ -3,71 +3,192 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a0e14">
 <title>bart-fart — live BART train tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚇</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   :root {
-    --bg: #101418; --panel: #1a2028; --text: #e8edf2; --muted: #93a1b0;
+    --bg: #0a0e14;
+    --panel: rgba(13, 18, 26, .78);
+    --panel-border: rgba(255, 255, 255, .08);
+    --text: #e6edf5;
+    --muted: #8b98a9;
+    --live: #34d399;
   }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
-  #app { display: flex; flex-direction: column; height: 100%; }
-  header {
-    background: var(--panel); color: var(--text); padding: 10px 16px;
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-    box-shadow: 0 1px 6px rgba(0,0,0,.4); z-index: 1000;
+  html, body { height: 100%; margin: 0; background: var(--bg); }
+  body { font-family: 'Space Grotesk', -apple-system, 'Segoe UI', sans-serif; }
+  #map { position: fixed; inset: 0; background: var(--bg); }
+
+  /* ---------- floating glass header ---------- */
+  #hud {
+    position: fixed; top: 14px; left: 14px; z-index: 1000;
+    display: flex; flex-direction: column; gap: 10px;
+    max-width: calc(100vw - 28px);
   }
-  header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
-  header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
-  #status { color: var(--muted); font-size: 13px; margin-left: auto; }
-  #lines { display: flex; gap: 8px; flex-wrap: wrap; }
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, .45);
+  }
+  #title-card { display: flex; align-items: center; gap: 14px; padding: 12px 18px; }
+  #title-card h1 {
+    margin: 0; font-size: 20px; font-weight: 700; letter-spacing: .5px; color: var(--text);
+  }
+  #title-card h1 em { font-style: normal; color: #ffd21e; }
+  #live-pill {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11px; font-weight: 500; letter-spacing: .18em; color: var(--live);
+  }
+  #live-pill i {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--live);
+    box-shadow: 0 0 8px var(--live);
+    animation: pulse 2s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .6); }
+    70% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+  }
+  #status { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  #status b { color: var(--text); font-weight: 500; }
+  #lines { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 14px; }
   .chip {
-    display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
-    color: var(--text); background: #232b35; border-radius: 999px; padding: 3px 10px;
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 500; color: var(--text);
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 999px; padding: 4px 11px;
   }
-  .chip i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-  #map { flex: 1; background: #dfe3e8; }
-  .leaflet-tile { filter: grayscale(.85) brightness(1.03); }
-  .train-zoom { width: 16px; height: 16px; transition: transform .2s; }
-  .train-marker:hover .train-zoom { transform: scale(1.3); }
-  .train-wrap { position: relative; width: 16px; height: 16px; }
+  .chip i {
+    width: 9px; height: 9px; border-radius: 50%; display: inline-block;
+    box-shadow: 0 0 7px currentColor;
+  }
+  .chip span { color: var(--muted); font-weight: 400; }
+
+  /* ---------- loading overlay ---------- */
+  #loading {
+    position: fixed; inset: 0; z-index: 2000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    background: var(--bg); color: var(--text);
+    transition: opacity .8s;
+  }
+  #loading.done { opacity: 0; pointer-events: none; }
+  #loading .radar {
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 2px solid rgba(255, 210, 30, .9);
+    position: relative;
+    animation: radar 1.8s ease-out infinite;
+  }
+  #loading .radar::after {
+    content: ''; position: absolute; inset: 22px; border-radius: 50%;
+    background: #ffd21e; box-shadow: 0 0 18px #ffd21e;
+  }
+  @keyframes radar {
+    0% { box-shadow: 0 0 0 0 rgba(255, 210, 30, .45); }
+    100% { box-shadow: 0 0 0 44px rgba(255, 210, 30, 0); }
+  }
+  #loading h1 { font-size: 26px; margin: 0; letter-spacing: .5px; }
+  #loading h1 em { font-style: normal; color: #ffd21e; }
+  #loading p { margin: 0; color: var(--muted); font-size: 14px; letter-spacing: .12em; }
+
+  /* ---------- map furniture ---------- */
+  .leaflet-container { font-family: inherit; }
+  .leaflet-overlay-pane svg { filter: drop-shadow(0 0 5px rgba(0, 0, 0, .9)); }
+  .leaflet-control-zoom { border: none !important; box-shadow: 0 8px 24px rgba(0,0,0,.5) !important; }
+  .leaflet-control-zoom a {
+    background: var(--panel) !important; color: var(--text) !important;
+    border: 1px solid var(--panel-border) !important;
+    backdrop-filter: blur(10px);
+  }
+  .leaflet-control-attribution {
+    background: rgba(10, 14, 20, .6) !important; color: #5c6875 !important;
+    backdrop-filter: blur(6px); font-size: 10px !important;
+  }
+  .leaflet-control-attribution a { color: #7d8b9c !important; }
+
+  .stn-tip {
+    background: var(--panel) !important; color: var(--text) !important;
+    border: 1px solid var(--panel-border) !important; border-radius: 8px !important;
+    backdrop-filter: blur(10px);
+    font-size: 12px; font-family: inherit; padding: 4px 10px !important;
+    box-shadow: 0 6px 20px rgba(0,0,0,.5) !important;
+  }
+  .stn-tip::before { display: none; }
+
+  .leaflet-popup-content-wrapper {
+    background: var(--panel) !important; color: var(--text) !important;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px !important;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 12px 40px rgba(0,0,0,.55) !important;
+  }
+  .leaflet-popup-tip { background: rgba(13, 18, 26, .9) !important; }
+  .leaflet-popup-close-button { color: var(--muted) !important; }
+  .leaflet-popup-content { font-size: 13px; line-height: 1.6; margin: 14px 18px !important; font-family: inherit; }
+  .popup-dest { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .popup-dest i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px currentColor; flex: none; }
+  .popup-sub { color: var(--muted); }
+  .popup-sub b { color: var(--text); font-weight: 500; }
+  .popup-late { color: #fb923c; }
+
+  /* ---------- trains ---------- */
+  .train-marker { transition: transform 1.6s cubic-bezier(.45, 0, .3, 1); }
+  .leaflet-zoom-anim .train-marker { transition: none; }
+  .train-zoom { width: 16px; height: 16px; transition: transform .2s; animation: pop .45s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+  .train-marker:hover .train-zoom { transform: scale(1.35); }
+  .train-marker:hover { z-index: 900 !important; }
+  .train-wrap { position: relative; width: 16px; height: 16px; transition: transform 1.6s cubic-bezier(.45, 0, .3, 1); }
+  .leaflet-zoom-anim .train-wrap { transition: none; }
   .train-dot {
     width: 16px; height: 16px; border-radius: 50%;
-    border: 2.5px solid #fff; box-shadow: 0 0 6px rgba(0,0,0,.6);
+    border: 2px solid rgba(255, 255, 255, .95);
   }
   .train-nose {
     position: absolute; top: -7px; left: 3px;
     width: 0; height: 0;
     border-left: 5px solid transparent; border-right: 5px solid transparent;
     border-bottom: 7px solid #fff;
-    filter: drop-shadow(0 0 1.5px rgba(0,0,0,.7));
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, .8));
   }
-  .leaflet-popup-content { font-size: 13px; line-height: 1.5; }
-  .leaflet-popup-content b { font-size: 14px; }
-  .stn-tip { font-size: 12px; }
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
-    <h1>bart-fart <span>live BART train tracker</span></h1>
-    <div id="lines"></div>
-    <div id="status">loading…</div>
-  </header>
-  <div id="map"></div>
+<div id="loading">
+  <div class="radar"></div>
+  <h1>bart-<em>fart</em></h1>
+  <p>TRIANGULATING TRAINS…</p>
 </div>
+<div id="hud">
+  <div id="title-card" class="glass">
+    <h1>bart-<em>fart</em></h1>
+    <div id="live-pill"><i></i>LIVE</div>
+    <div id="status">warming up…</div>
+  </div>
+  <div id="lines" class="glass" hidden></div>
+</div>
+<div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-polylineoffset@1.1.1/leaflet.polylineoffset.js"></script>
 <script src="core.js"></script>
 <script>
-const map = L.map('map', { zoomControl: true }).setView([37.72, -122.28], 11);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors',
-  maxZoom: 18,
+const map = L.map('map', { zoomControl: false, zoomSnap: .5 }).setView([37.72, -122.28], 11);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Esri &copy; OpenStreetMap contributors | data: BART',
+  maxZoom: 16,
 }).addTo(map);
-
-const trainLayer = L.layerGroup().addTo(map);
-let network = null;
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 16, opacity: .75,
+}).addTo(map);
 
 // Fixed drawing order so parallel lines stack consistently along a corridor.
 const COLOR_ORDER = ['YELLOW', 'ORANGE', 'GREEN', 'RED', 'BLUE', 'GREY'];
@@ -96,49 +217,81 @@ function drawNetwork(net) {
     colors.forEach((color, i) => {
       const pts = [[stn[seg.a].lat, stn[seg.a].lon], [stn[seg.b].lat, stn[seg.b].lon]];
       L.polyline(pts, {
-        color: seg.colors.get(color), weight: 3, opacity: .9,
+        color: seg.colors.get(color), weight: 2.5, opacity: .95,
         offset: (i - (colors.length - 1) / 2) * LINE_SPACING,
       }).addTo(map);
     });
   }
   for (const s of Object.values(net.stations)) {
     L.circleMarker([s.lat, s.lon], {
-      radius: 3.5, color: '#333c44', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1,
-    }).bindTooltip(s.name, { className: 'stn-tip', direction: 'top' }).addTo(map);
+      radius: 2.5, color: 'rgba(230, 240, 255, .85)', weight: 1.25,
+      fillColor: '#0b1017', fillOpacity: 1,
+    }).bindTooltip(s.name, { className: 'stn-tip', direction: 'top', offset: [0, -6] }).addTo(map);
   }
+  map.fitBounds(L.latLngBounds(Object.values(net.stations).map(s => [s.lat, s.lon])), { padding: [30, 30] });
 }
 
-function drawTrains(data) {
-  trainLayer.clearLayers();
+function popupHtml(t) {
+  const where = t.atStation
+    ? `At <b>${t.atStation}</b>`
+    : `${t.prevStation} → <b>${t.nextStation}</b> (~${t.minutesToNext} min)`;
+  return `<div class="popup-dest"><i style="background:${t.hexcolor};color:${t.hexcolor}"></i>${t.destination}</div>` +
+    `<div class="popup-sub">${where}<br>` +
+    `${t.cars ? t.cars + ' cars · ' : ''}${t.direction}bound` +
+    (t.delayMin > 0 ? ` · <span class="popup-late">${t.delayMin} min late</span>` : '') +
+    `</div>`;
+}
+
+function makeMarker(t) {
+  const icon = L.divIcon({
+    className: 'train-marker',
+    iconSize: [16, 16], iconAnchor: [8, 8],
+    html: `<div class="train-zoom"><div class="train-wrap" style="transform:rotate(${t.bearing}deg)">` +
+          `<div class="train-nose"></div><div class="train-dot" style="background:${t.hexcolor};box-shadow:0 0 12px 2px ${t.hexcolor}88"></div></div></div>`,
+  });
+  return L.marker([t.lat, t.lon], { icon, zIndexOffset: 500 }).bindPopup(popupHtml(t)).addTo(map);
+}
+
+// Markers are matched to the previous refresh's trains (same line + direction,
+// nearest position) so they glide to their new spot instead of jumping.
+let live = []; // [{ marker, train }]
+function updateTrains(trains) {
+  const unmatched = new Set(live);
+  const next = [];
+  for (const t of trains) {
+    let best = null, bestD = Infinity;
+    for (const e of unmatched) {
+      if (e.train.color !== t.color || e.train.direction !== t.direction) continue;
+      const d = (e.train.lat - t.lat) ** 2 + (e.train.lon - t.lon) ** 2;
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    if (best && bestD < 0.0016) { // ~4 km
+      unmatched.delete(best);
+      best.train = t;
+      best.marker.setLatLng([t.lat, t.lon]);
+      const wrap = best.marker._icon && best.marker._icon.querySelector('.train-wrap');
+      if (wrap) wrap.style.transform = `rotate(${t.bearing}deg)`;
+      best.marker.setPopupContent(popupHtml(t));
+      next.push(best);
+    } else {
+      next.push({ marker: makeMarker(t), train: t });
+    }
+  }
+  for (const e of unmatched) e.marker.remove();
+  live = next;
+
   const counts = {};
-  for (const t of data.trains) {
+  for (const t of trains) {
     counts[t.color] = counts[t.color] || { n: 0, hex: t.hexcolor };
     counts[t.color].n++;
-    const icon = L.divIcon({
-      className: 'train-marker',
-      iconSize: [16, 16], iconAnchor: [8, 8],
-      html: `<div class="train-zoom"><div class="train-wrap" style="transform:rotate(${t.bearing}deg)">` +
-            `<div class="train-nose"></div><div class="train-dot" style="background:${t.hexcolor}"></div></div></div>`,
-    });
-    const where = t.atStation
-      ? `At <b>${t.atStation}</b>`
-      : `${t.prevStation} → <b>${t.nextStation}</b> (~${t.minutesToNext} min)`;
-    L.marker([t.lat, t.lon], { icon, zIndexOffset: 500 })
-      .bindPopup(
-        `<b style="color:${t.hexcolor}">● ${t.color}</b> to <b>${t.destination}</b><br>` +
-        `${where}<br>` +
-        `${t.cars ? t.cars + ' cars · ' : ''}${t.direction}bound` +
-        (t.delayMin > 0 ? ` · <span style="color:#ff7043">${t.delayMin} min late</span>` : '')
-      )
-      .addTo(trainLayer);
   }
-  document.getElementById('lines').innerHTML = Object.entries(counts)
-    .sort()
-    .map(([c, v]) => `<span class="chip"><i style="background:${v.hex}"></i>${c} ${v.n}</span>`)
+  const lines = document.getElementById('lines');
+  lines.hidden = false;
+  lines.innerHTML = Object.entries(counts).sort()
+    .map(([c, v]) => `<span class="chip"><i style="background:${v.hex};color:${v.hex}"></i>${c} <span>${v.n}</span></span>`)
     .join('');
-  const when = new Date(data.updated).toLocaleTimeString();
-  document.getElementById('status').textContent =
-    `${data.trains.length} trains · updated ${when}`;
+  const when = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  document.getElementById('status').innerHTML = `<b>${trains.length}</b> trains · ${when}`;
 }
 
 const API_KEY = 'MW9S-E7SL-26DU-VV8V'; // BART's public demo key
@@ -161,10 +314,11 @@ async function loadNetworkCached() {
   return net;
 }
 
+let network = null;
 async function refresh() {
   try {
     const data = await getJSON(api('etd', { cmd: 'etd', orig: 'ALL' }));
-    drawTrains({ updated: new Date().toISOString(), trains: BartCore.estimateTrains(network, data.root) });
+    updateTrains(BartCore.estimateTrains(network, data.root));
   } catch (e) {
     document.getElementById('status').textContent = '⚠ could not reach the BART API';
   }
@@ -174,6 +328,7 @@ async function refresh() {
   network = await loadNetworkCached();
   drawNetwork(network);
   await refresh();
+  document.getElementById('loading').classList.add('done');
   setInterval(refresh, 15000);
 })();
 </script>
