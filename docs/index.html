@@ -443,7 +443,7 @@ function applyView(v) {
   if (wantDay) { map.removeLayer(tilesNeon); map.removeLayer(tilesNeonRef); tilesDay.addTo(map); }
   else { map.removeLayer(tilesDay); tilesNeon.addTo(map); tilesNeonRef.addTo(map); }
   try { localStorage.setItem('bart-fart-view', v); } catch (e) {}
-  if (v === 'board') renderHall();
+  if (v === 'board') { hallAutoSelect(); renderHall(); }
 }
 document.querySelectorAll('#views button').forEach(b => b.onclick = () => applyView(b.dataset.v));
 
@@ -553,7 +553,7 @@ function locate() {
       icon: L.divIcon({ className: 'you-marker', iconSize: [14, 14], iconAnchor: [7, 7], html: '<div class="you-dot"></div>' }),
       interactive: false, zIndexOffset: 700,
     }).addTo(map);
-    if (view === 'board') applyView('neon'); // the map has the answer, so show it
+    if (view === 'board') { hallAutoSelect(); renderHall(); } // reflect nearest in the hall too
     stnPopupStation = best;
     stnPopup = L.popup({ offset: [0, -6], autoPan: false })
       .setLatLng([best.lat, best.lon]).setContent(stationPopupHtml(best)).openOn(map);
@@ -585,6 +585,7 @@ map.on('click', (e) => {
     .setLatLng([best.lat, best.lon])
     .setContent(stationPopupHtml(best))
     .openOn(map);
+  rememberStation(best.abbr);
 });
 
 function stationPopupHtml(s) {
@@ -638,7 +639,27 @@ function stationBoard(s, code) {
 const FLAPCHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/. ';
 const HALL_ROWS = 10, DEST_W = 18;
 let hallStation = 'EMBR';
-try { hallStation = localStorage.getItem('bart-fart-hall-stn') || 'EMBR'; } catch (e) {}
+let lastStn = null; // last station the user explicitly viewed (map click or hall pick)
+try {
+  lastStn = localStorage.getItem('bart-fart-last-stn');
+  hallStation = lastStn || localStorage.getItem('bart-fart-hall-stn') || 'EMBR';
+} catch (e) {}
+function rememberStation(abbr) {
+  lastStn = abbr;
+  try { localStorage.setItem('bart-fart-last-stn', abbr); } catch (e) {}
+}
+
+// Pick the hall's station automatically: the last station the user explicitly
+// viewed wins; otherwise the one nearest their location, if we know it.
+function hallAutoSelect() {
+  if (!network) return;
+  const target = lastStn && network.stations[lastStn] ? lastStn
+    : you && network.stations[you.nearestAbbr] ? you.nearestAbbr : null;
+  if (!target) return;
+  hallStation = target;
+  const pick = document.getElementById('stn-pick');
+  if (pick.options.length) pick.value = target;
+}
 
 function buildHall(net) {
   const pick = document.getElementById('stn-pick');
@@ -650,7 +671,7 @@ function buildHall(net) {
   pick.value = hallStation;
   pick.onchange = () => {
     hallStation = pick.value;
-    try { localStorage.setItem('bart-fart-hall-stn', hallStation); } catch (e) {}
+    rememberStation(hallStation);
     renderHall();
   };
 
