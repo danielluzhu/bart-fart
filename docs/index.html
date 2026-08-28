@@ -275,6 +275,28 @@
     filter: drop-shadow(0 0 2px rgba(0, 0, 0, .8));
   }
 
+  /* ---------- fart plumes ---------- */
+  .puff-marker { pointer-events: none; }
+  .puff {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: radial-gradient(circle,
+      rgba(185, 240, 135, .85) 0%,
+      rgba(155, 215, 105, .45) 55%,
+      rgba(155, 215, 105, 0) 78%);
+    filter: blur(.5px);
+    animation: puff-drift 2.4s ease-out forwards;
+  }
+  body.view-day .puff {
+    background: radial-gradient(circle,
+      rgba(105, 155, 55, .7) 0%,
+      rgba(105, 155, 55, .35) 55%,
+      rgba(105, 155, 55, 0) 78%);
+  }
+  @keyframes puff-drift {
+    0% { transform: translate(0, 0) scale(.35); opacity: .95; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(var(--s)); opacity: 0; }
+  }
+
   /* ---------- split-flap departures hall ---------- */
   #hall {
     position: fixed; inset: 0; z-index: 800; display: none;
@@ -813,6 +835,38 @@ function updateTrains(trains) {
   const when = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   document.getElementById('status').innerHTML = `<b>${trains.length}</b> trains · ${when}`;
 }
+
+/* ================= fart plumes ================= */
+// Living up to the name: every train periodically toots a little cloud at its
+// current on-screen (mid-glide) position, drifting off behind it.
+const MAX_PUFFS = 80;
+let puffCount = 0;
+function emitPuff(e) {
+  const icon = e.marker._icon;
+  if (!icon || puffCount >= MAX_PUFFS) return;
+  const r = icon.getBoundingClientRect();
+  const m = map.getContainer().getBoundingClientRect();
+  if (r.right < m.left || r.left > m.right || r.bottom < m.top || r.top > m.bottom) return;
+  const ll = map.containerPointToLatLng([r.left + r.width / 2 - m.left, r.top + r.height / 2 - m.top]);
+  const rad = e.train.bearing * Math.PI / 180;
+  const back = 10 + Math.random() * 10; // px of drift, opposite the nose
+  const dx = -Math.sin(rad) * back + (Math.random() - .5) * 8;
+  const dy = Math.cos(rad) * back + (Math.random() - .5) * 8 - 4; // plus a little rise
+  const scale = 1.8 + Math.random() * 1.4;
+  const puff = L.marker(ll, {
+    icon: L.divIcon({
+      className: 'puff-marker', iconSize: [12, 12], iconAnchor: [6, 6],
+      html: `<div class="puff" style="--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;--s:${scale.toFixed(2)}"></div>`,
+    }),
+    interactive: false, keyboard: false, zIndexOffset: 100,
+  }).addTo(map);
+  puffCount++;
+  setTimeout(() => { puff.remove(); puffCount--; }, 2400);
+}
+setInterval(() => {
+  if (view === 'board' || document.hidden) return;
+  for (const e of live) if (Math.random() < .45) emitPuff(e);
+}, 900);
 
 /* ================= data loop ================= */
 const API_KEY = 'MW9S-E7SL-26DU-VV8V'; // BART's public demo key
