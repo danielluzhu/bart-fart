@@ -89,13 +89,28 @@
     padding: 4px 12px; cursor: pointer;
   }
   #views button.on { color: var(--text); background: var(--panel); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
-  #locate {
+  #locate, #fart-btn {
     font-family: inherit; font-size: 11px; font-weight: 500; letter-spacing: .12em;
     color: var(--text); background: rgba(128, 128, 128, .14);
     border: 1px solid var(--panel-border); border-radius: 999px;
     padding: 5px 12px; cursor: pointer;
   }
-  #locate:hover { background: rgba(128, 128, 128, .24); }
+  #locate:hover, #fart-btn:hover { background: rgba(128, 128, 128, .24); }
+  #fart-btn { position: relative; }
+  #fart-btn.off { color: var(--muted); }
+  .btn-puff {
+    position: absolute; left: 50%; top: -8px; width: 34px; height: 22px;
+    margin-left: -17px; pointer-events: none;
+    animation: btn-puff 1.3s ease-out forwards;
+  }
+  .btn-puff path, .btn-puff circle {
+    fill: rgba(178, 224, 124, .9); stroke: #4a7c2f; stroke-width: 1.5; stroke-linejoin: round;
+  }
+  @keyframes btn-puff {
+    0% { transform: translateY(0) scale(.3); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translateY(-26px) scale(1.15); opacity: 0; }
+  }
   #locate.busy { color: var(--muted); cursor: wait; animation: locating 1s ease-in-out infinite; }
   @keyframes locating { 50% { opacity: .4; } }
   body.view-board #locate { display: none; }
@@ -429,6 +444,7 @@
       <button data-v="board">DEPARTURES</button>
     </div>
     <button id="locate" title="Zoom to my location and the nearest station">📍 NEAR ME</button>
+    <button id="fart-btn" title="Toggle fart sounds">💨 FART ON</button>
   </div>
   <div id="lines" class="glass" hidden></div>
 </div>
@@ -766,6 +782,33 @@ function setGroup(groupEl, text, width, alignRight) {
 }
 
 /* ---- departure toots: cloud across the screen + synthesized fart ---- */
+// The one true cartoon fart cloud, shared by map puffs, hall toots, and the button.
+const CLOUD_SVG = `<svg viewBox="-8 -2 42 26">` +
+  `<path d="M4 14 A5 5 0 0 1 8 6 A4.5 4.5 0 0 1 16 4 A4.5 4.5 0 0 1 24 6 A5 5 0 0 1 28 14 A4.3 4.3 0 0 1 22 19 A6.5 6.5 0 0 1 10 19 A4.3 4.3 0 0 1 4 14 Z"/>` +
+  `<circle cx="-1.5" cy="17" r="2.2"/><circle cx="-5" cy="14" r="1.3"/></svg>`;
+
+let fartAudio = true; // sound on by default; the 💨 button toggles it
+try { fartAudio = localStorage.getItem('bart-fart-audio') !== 'off'; } catch (e) {}
+const fartBtn = document.getElementById('fart-btn');
+function renderFartBtn() {
+  fartBtn.textContent = fartAudio ? '💨 FART ON' : '💨 FART OFF';
+  fartBtn.classList.toggle('off', !fartAudio);
+}
+renderFartBtn();
+fartBtn.onclick = () => {
+  fartAudio = !fartAudio;
+  try { localStorage.setItem('bart-fart-audio', fartAudio ? 'on' : 'off'); } catch (e) {}
+  renderFartBtn();
+  if (fartAudio) { // a confirmation toot
+    playFartSound();
+    const p = document.createElement('div');
+    p.className = 'btn-puff';
+    p.innerHTML = CLOUD_SVG;
+    p.addEventListener('animationend', () => p.remove());
+    fartBtn.appendChild(p);
+  }
+};
+
 let audioCtx = null;
 function playFartSound() {
   try {
@@ -807,13 +850,11 @@ function tootAcrossScreen() {
   el.className = 'hall-fart';
   el.style.setProperty('--y', (15 + Math.random() * 55).toFixed(0) + 'vh');
   el.style.setProperty('--t', (2.6 + Math.random() * 1.2).toFixed(2) + 's');
-  el.innerHTML = `<svg viewBox="-8 -2 42 26">` +
-    `<path d="M4 14 A5 5 0 0 1 8 6 A4.5 4.5 0 0 1 16 4 A4.5 4.5 0 0 1 24 6 A5 5 0 0 1 28 14 A4.3 4.3 0 0 1 22 19 A6.5 6.5 0 0 1 10 19 A4.3 4.3 0 0 1 4 14 Z"/>` +
-    `<circle cx="-1.5" cy="17" r="2.2"/><circle cx="-5" cy="14" r="1.3"/></svg>`;
+  el.innerHTML = CLOUD_SVG;
   el.addEventListener('animationend', (ev) => { if (ev.target === el) el.remove(); });
   setTimeout(() => el.remove(), 6000); // belt and braces
   document.getElementById('hall').appendChild(el);
-  playFartSound();
+  if (fartAudio) playFartSound();
 }
 
 // One toot per departing train: remember which "Leaving" rows we've seen so a
@@ -949,11 +990,7 @@ function emitPuff(e) {
   const puff = L.marker(ll, {
     icon: L.divIcon({
       className: 'puff-marker', iconSize: [30, 19], iconAnchor: [15, 10],
-      html: `<div class="puff" style="--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;--s:${scale.toFixed(2)};--rot:${rot}deg">` +
-        `<svg viewBox="-8 -2 42 26">` +
-        `<path d="M4 14 A5 5 0 0 1 8 6 A4.5 4.5 0 0 1 16 4 A4.5 4.5 0 0 1 24 6 A5 5 0 0 1 28 14 A4.3 4.3 0 0 1 22 19 A6.5 6.5 0 0 1 10 19 A4.3 4.3 0 0 1 4 14 Z"/>` +
-        `<circle cx="-1.5" cy="17" r="2.2"/><circle cx="-5" cy="14" r="1.3"/>` +
-        `</svg></div>`,
+      html: `<div class="puff" style="--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;--s:${scale.toFixed(2)};--rot:${rot}deg">${CLOUD_SVG}</div>`,
     }),
     interactive: false, keyboard: false, zIndexOffset: 100,
   }).addTo(map);
