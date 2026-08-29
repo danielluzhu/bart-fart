@@ -815,28 +815,73 @@ function playFartSound() {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const t0 = audioCtx.currentTime;
-    const dur = .7 + Math.random() * .5;
+    const dur = .6 + Math.random() * .6;
+    const N = Math.max(8, Math.floor(dur * 60)); // ~60 control points/sec
+
+    // Pitch: starts lowish and wanders downward with jitter — never a clean tone.
+    const freqs = new Float32Array(N);
+    let f = 75 + Math.random() * 45;
+    for (let i = 0; i < N; i++) {
+      f = Math.max(35, Math.min(150, f + (Math.random() - .58) * 14));
+      freqs[i] = f;
+    }
+
+    // Amplitude: fast attack, tapering body, irregular flutter with the odd gap.
+    const amps = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const env = Math.min(1, i / 2) * Math.pow(1 - i / N, .6);
+      const flutter = .45 + .55 * Math.random();
+      const gap = Math.random() < .12 ? .05 : 1;
+      amps[i] = .55 * env * flutter * gap;
+    }
+
     const osc = audioCtx.createOscillator();
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(85 + Math.random() * 30, t0);
-    osc.frequency.exponentialRampToValueAtTime(45, t0 + dur);
-    const lfo = audioCtx.createOscillator(); // the sputter
-    lfo.type = 'square';
-    lfo.frequency.setValueAtTime(24 + Math.random() * 14, t0);
-    lfo.frequency.linearRampToValueAtTime(12, t0 + dur);
-    const lfoGain = audioCtx.createGain();
-    lfoGain.gain.value = .3;
-    const amp = audioCtx.createGain();
-    amp.gain.setValueAtTime(0, t0);
-    amp.gain.linearRampToValueAtTime(.35, t0 + .04);
-    amp.gain.setValueAtTime(.35, t0 + dur * .6);
-    amp.gain.linearRampToValueAtTime(0, t0 + dur);
-    const filt = audioCtx.createBiquadFilter();
-    filt.type = 'lowpass'; filt.frequency.value = 400; filt.Q.value = 4;
-    lfo.connect(lfoGain); lfoGain.connect(amp.gain);
-    osc.connect(filt); filt.connect(amp); amp.connect(audioCtx.destination);
-    osc.start(t0); lfo.start(t0);
-    osc.stop(t0 + dur + .05); lfo.stop(t0 + dur + .05);
+    osc.frequency.setValueCurveAtTime(freqs, t0, dur);
+    const oscGain = audioCtx.createGain();
+    oscGain.gain.setValueCurveAtTime(amps, t0, dur);
+
+    // Raspberry texture: band-limited noise riding the same flutter envelope.
+    const nbuf = audioCtx.createBuffer(1, Math.ceil(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+    const nd = nbuf.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = nbuf;
+    const nfilt = audioCtx.createBiquadFilter();
+    nfilt.type = 'bandpass'; nfilt.frequency.value = 180; nfilt.Q.value = .8;
+    const nGain = audioCtx.createGain();
+    nGain.gain.setValueCurveAtTime(amps.map((a) => a * .8), t0, dur);
+
+    // Body: resonant lowpass, then soft clipping so it flaps instead of buzzes.
+    const body = audioCtx.createBiquadFilter();
+    body.type = 'lowpass'; body.frequency.value = 320; body.Q.value = 4;
+    const shaper = audioCtx.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) curve[i] = Math.tanh(2.5 * (i / 128 - 1));
+    shaper.curve = curve;
+    const master = audioCtx.createGain();
+    master.gain.value = .5;
+
+    osc.connect(oscGain); oscGain.connect(body);
+    noise.connect(nfilt); nfilt.connect(nGain); nGain.connect(body);
+    body.connect(shaper); shaper.connect(master); master.connect(audioCtx.destination);
+    osc.start(t0); noise.start(t0);
+    osc.stop(t0 + dur + .05); noise.stop(t0 + dur + .05);
+
+    // Sometimes it ends on a little squeak.
+    if (Math.random() < .35) {
+      const t1 = t0 + dur - .02;
+      const sq = audioCtx.createOscillator();
+      sq.type = 'sine';
+      sq.frequency.setValueAtTime(300 + Math.random() * 150, t1);
+      sq.frequency.exponentialRampToValueAtTime(500 + Math.random() * 250, t1 + .12);
+      const sg = audioCtx.createGain();
+      sg.gain.setValueAtTime(0, t1);
+      sg.gain.linearRampToValueAtTime(.1, t1 + .03);
+      sg.gain.linearRampToValueAtTime(0, t1 + .15);
+      sq.connect(sg); sg.connect(audioCtx.destination);
+      sq.start(t1); sq.stop(t1 + .16);
+    }
   } catch (e) {}
 }
 // Browsers keep audio suspended until a gesture; unlock on the first one.
