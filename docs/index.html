@@ -257,23 +257,13 @@
   /* ---------- trains ---------- */
   .train-marker { transition: transform 1.6s cubic-bezier(.45, 0, .3, 1); }
   .leaflet-zoom-anim .train-marker { transition: none; }
-  .train-zoom { width: 16px; height: 16px; transition: transform .2s; animation: pop .45s cubic-bezier(.2, 1.6, .4, 1); }
+  .train-zoom { width: 13px; height: 30px; transition: transform .2s; animation: pop .45s cubic-bezier(.2, 1.6, .4, 1); }
   @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
   .train-marker:hover .train-zoom { transform: scale(1.35); }
   .train-marker:hover { z-index: 900 !important; }
-  .train-wrap { position: relative; width: 16px; height: 16px; transition: transform 1.6s cubic-bezier(.45, 0, .3, 1); }
+  .train-wrap { position: relative; width: 13px; height: 30px; transition: transform 1.6s cubic-bezier(.45, 0, .3, 1); }
   .leaflet-zoom-anim .train-wrap { transition: none; }
-  .train-dot {
-    width: 16px; height: 16px; border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, .95);
-  }
-  .train-nose {
-    position: absolute; top: -7px; left: 3px;
-    width: 0; height: 0;
-    border-left: 5px solid transparent; border-right: 5px solid transparent;
-    border-bottom: 7px solid #fff;
-    filter: drop-shadow(0 0 2px rgba(0, 0, 0, .8));
-  }
+  .train-svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
   /* ---------- fart plumes ---------- */
   .puff-marker { pointer-events: none; }
@@ -791,12 +781,23 @@ function popupHtml(t) {
     `</div>`;
 }
 
+// A little BART car from above, nose pointing north so rotate(bearing) works:
+// silver body, dark windshield, car divider, and a roof stripe in line color.
+function trainIconHtml(t) {
+  return `<div class="train-zoom"><div class="train-wrap" style="transform:rotate(${t.bearing}deg)">` +
+    `<svg class="train-svg" viewBox="0 0 13 30" style="filter:drop-shadow(0 0 5px ${t.hexcolor})">` +
+    `<path d="M6.5 .75 C9.8 .75 11.6 2.6 11.6 6.2 L11.6 26.2 Q11.6 29.25 8.6 29.25 L4.4 29.25 Q1.4 29.25 1.4 26.2 L1.4 6.2 C1.4 2.6 3.2 .75 6.5 .75 Z" fill="#e9edf1" stroke="#5c6670" stroke-width="1"/>` +
+    `<rect x="5" y="7.4" width="3" height="19.6" rx="1.5" fill="${t.hexcolor}"/>` +
+    `<rect x="1.9" y="14.4" width="9.2" height="1" fill="#9aa4ad"/>` +
+    `<rect x="3.1" y="2.7" width="6.8" height="2.5" rx="1.2" fill="#242b32"/>` +
+    `</svg></div></div>`;
+}
+
 function makeMarker(t) {
   const icon = L.divIcon({
     className: 'train-marker',
-    iconSize: [16, 16], iconAnchor: [8, 8],
-    html: `<div class="train-zoom"><div class="train-wrap" style="transform:rotate(${t.bearing}deg)">` +
-          `<div class="train-nose"></div><div class="train-dot" style="background:${t.hexcolor};box-shadow:0 0 12px 2px ${t.hexcolor}88"></div></div></div>`,
+    iconSize: [13, 30], iconAnchor: [6.5, 15], popupAnchor: [0, -12],
+    html: trainIconHtml(t),
   });
   return L.marker([t.lat, t.lon], { icon, zIndexOffset: 500 }).bindPopup(popupHtml(t)).addTo(map);
 }
