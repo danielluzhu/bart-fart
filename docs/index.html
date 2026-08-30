@@ -139,7 +139,11 @@
     background: rgba(128, 128, 128, .09);
     border: 1px solid var(--panel-border);
     border-radius: 999px; padding: 4px 11px;
+    cursor: pointer; user-select: none;
   }
+  .chip:hover { background: rgba(128, 128, 128, .2); }
+  .chip.off { opacity: .4; }
+  .chip.off i { box-shadow: none; }
   .chip i {
     width: 9px; height: 9px; border-radius: 50%; display: inline-block;
     box-shadow: 0 0 7px currentColor;
@@ -505,6 +509,28 @@ document.querySelectorAll('#views button').forEach(b => b.onclick = () => applyV
 const COLOR_ORDER = ['YELLOW', 'ORANGE', 'GREEN', 'RED', 'BLUE', 'GREY'];
 const LINE_SPACING = 4; // px between parallel lines
 
+/* ---- line filter: click a header chip to toggle that line ---- */
+let hiddenLines = new Set();
+try { hiddenLines = new Set(JSON.parse(localStorage.getItem('bart-fart-hidden-lines') || '[]')); } catch (e) {}
+const lineLayers = {}; // color -> [polyline, ...]
+
+function toggleLine(color) {
+  if (hiddenLines.has(color)) hiddenLines.delete(color);
+  else hiddenLines.add(color);
+  try { localStorage.setItem('bart-fart-hidden-lines', JSON.stringify([...hiddenLines])); } catch (e) {}
+  applyLineFilter();
+}
+function applyLineFilter() {
+  for (const [color, layers] of Object.entries(lineLayers))
+    for (const l of layers) l.setStyle({ opacity: hiddenLines.has(color) ? .12 : .95 });
+  if (lastTrains) updateTrains(lastTrains);
+  if (view === 'board') renderHall();
+}
+document.getElementById('lines').onclick = (e) => {
+  const chip = e.target.closest('.chip');
+  if (chip) toggleLine(chip.dataset.color);
+};
+
 function drawNetwork(net) {
   const stn = net.stations;
   // Group track segments (station pairs) by the set of line colors serving
@@ -526,10 +552,11 @@ function drawNetwork(net) {
     const colors = [...seg.colors.keys()].sort((x, y) => COLOR_ORDER.indexOf(x) - COLOR_ORDER.indexOf(y));
     colors.forEach((color, i) => {
       const pts = [[stn[seg.a].lat, stn[seg.a].lon], [stn[seg.b].lat, stn[seg.b].lon]];
-      L.polyline(pts, {
+      const pl = L.polyline(pts, {
         color: seg.colors.get(color), weight: 2.5, opacity: .95,
         offset: (i - (colors.length - 1) / 2) * LINE_SPACING,
       }).addTo(map);
+      (lineLayers[color] = lineLayers[color] || []).push(pl);
     });
   }
   // Key stations get bigger beads and permanent labels: airports (by name)
@@ -565,6 +592,7 @@ function drawNetwork(net) {
       .bindTooltip(() => stationBoard(s), { className: 'stn-tip', direction: 'top', offset: [0, -8], opacity: 1 })
       .addTo(map);
   }
+  applyLineFilter(); // dim any lines hidden in a previous session
   fitAll();
 }
 
@@ -664,6 +692,7 @@ function stationBoard(s, code) {
     for (const est of BartCore.asArray(etd.estimate)) {
       const mins = est.minutes === 'Leaving' ? 0 : Number(est.minutes);
       if (!Number.isFinite(mins) || est.cancelflag === '1' || !secs[est.direction]) continue;
+      if (hiddenLines.has(est.color)) continue;
       const key = `${etd.destination}|${est.hexcolor}`;
       if (!secs[est.direction].has(key)) secs[est.direction].set(key, { dest: etd.destination, hex: est.hexcolor, mins: [] });
       secs[est.direction].get(key).mins.push(mins);
@@ -914,6 +943,7 @@ function renderHall() {
     for (const est of BartCore.asArray(etd.estimate)) {
       const mins = est.minutes === 'Leaving' ? 0 : Number(est.minutes);
       if (!Number.isFinite(mins) || est.cancelflag === '1') continue;
+      if (hiddenLines.has(est.color)) continue;
       const dest = etd.destination === 'Pittsburg/Bay Point' ? 'PITTSBURG/BAY PT' : etd.destination;
       rows.push({ dest, hex: est.hexcolor, dir: est.direction[0], mins });
     }
@@ -992,10 +1022,13 @@ map.on('zoomend', () => {
 // Markers are matched to the previous refresh's trains (same line + direction,
 // nearest position) so they glide to their new spot instead of jumping.
 let live = [];
+let lastTrains = null; // full unfiltered list, so toggling a line re-renders instantly
 function updateTrains(trains) {
+  lastTrains = trains;
+  const shown = trains.filter((t) => !hiddenLines.has(t.color));
   const unmatched = new Set(live);
   const next = [];
-  for (const t of trains) {
+  for (const t of shown) {
     let best = null, bestD = Infinity;
     for (const e of unmatched) {
       if (e.train.color !== t.color || e.train.direction !== t.direction) continue;
@@ -1025,10 +1058,13 @@ function updateTrains(trains) {
   const lines = document.getElementById('lines');
   lines.hidden = false;
   lines.innerHTML = Object.entries(counts).sort()
-    .map(([c, v]) => `<span class="chip"><i style="background:${v.hex};color:${v.hex}"></i>${c} <span>${v.n}</span></span>`)
+    .map(([c, v]) => `<span class="chip${hiddenLines.has(c) ? ' off' : ''}" data-color="${c}" ` +
+      `title="Show/hide the ${c.toLowerCase()} line">` +
+      `<i style="background:${v.hex};color:${v.hex}"></i>${c} <span>${v.n}</span></span>`)
     .join('');
   const when = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  document.getElementById('status').innerHTML = `<b>${trains.length}</b> trains · ${when}`;
+  const shownNote = shown.length < trains.length ? ` (${shown.length} shown)` : '';
+  document.getElementById('status').innerHTML = `<b>${trains.length}</b> trains${shownNote} · ${when}`;
 }
 
 /* ================= fart plumes ================= */
