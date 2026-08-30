@@ -279,6 +279,8 @@
   .train-wrap { position: relative; width: 13px; height: 30px; transition: transform 1.6s cubic-bezier(.45, 0, .3, 1); }
   .leaflet-zoom-anim .train-wrap { transition: none; }
   .train-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  /* while zooming, marker pixel positions jump; never glide across that jump */
+  .no-train-glide .train-marker, .no-train-glide .train-wrap { transition: none !important; }
 
   /* ---------- fart plumes ---------- */
   .puff-marker { pointer-events: none; }
@@ -972,6 +974,21 @@ function makeMarker(t) {
   return L.marker([t.lat, t.lon], { icon, zIndexOffset: 500 }).bindPopup(popupHtml(t)).addTo(map);
 }
 
+// After a zoom, Leaflet rewrites every marker's pixel position (and strips its
+// zoom-anim class first), so the 1.6s glide transition would sail trains — and
+// the puffs sampled from their on-screen spots — right off the tracks.
+// Suspend the transition for the whole zoom plus one frame after.
+let mapZooming = false;
+map.on('zoomstart', () => {
+  mapZooming = true;
+  document.body.classList.add('no-train-glide');
+});
+map.on('zoomend', () => {
+  mapZooming = false;
+  requestAnimationFrame(() => requestAnimationFrame(() =>
+    document.body.classList.remove('no-train-glide')));
+});
+
 // Markers are matched to the previous refresh's trains (same line + direction,
 // nearest position) so they glide to their new spot instead of jumping.
 let live = [];
@@ -1019,7 +1036,11 @@ function updateTrains(trains) {
 // current on-screen (mid-glide) position, drifting off behind it.
 const MAX_PUFFS = 80;
 let puffCount = 0;
+let siteReady = false; // set once the loading overlay lifts
 function emitPuff(e) {
+  // No puffs while the map is still zooming into place (screen-position math
+  // is unreliable mid-animation, e.g. the fit-to-network zoom on first load).
+  if (mapZooming || !siteReady) return;
   const icon = e.marker._icon;
   if (!icon || puffCount >= MAX_PUFFS) return;
   const r = icon.getBoundingClientRect();
@@ -1096,6 +1117,7 @@ async function refresh() {
   } catch (e) {}
   await refresh();
   document.getElementById('loading').classList.add('done');
+  siteReady = true;
   setInterval(refresh, 15000);
 })();
 </script>
