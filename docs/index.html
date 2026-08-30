@@ -286,7 +286,7 @@
   .puff-marker { pointer-events: none; }
   .puff {
     width: 30px; height: 19px;
-    animation: puff-drift 2.4s ease-out forwards;
+    animation: puff-drift 2s ease-out forwards;
   }
   /* scalloped cartoon cloud + trailing bubbles; rotated so the bubbles
      point back toward the train that emitted it */
@@ -1034,7 +1034,7 @@ function updateTrains(trains) {
 /* ================= fart plumes ================= */
 // Living up to the name: every train periodically toots a little cloud at its
 // current on-screen (mid-glide) position, drifting off behind it.
-const MAX_PUFFS = 80;
+const MAX_PUFFS = 150;
 let puffCount = 0;
 let siteReady = false; // set once the loading overlay lifts
 function emitPuff(e) {
@@ -1061,12 +1061,15 @@ function emitPuff(e) {
     interactive: false, keyboard: false, zIndexOffset: 100,
   }).addTo(map);
   puffCount++;
-  setTimeout(() => { puff.remove(); puffCount--; }, 2400);
+  setTimeout(() => { puff.remove(); puffCount--; }, 2000);
 }
+// Every visible train farts continuously: a puff each tick, rotating the
+// starting train so the MAX_PUFFS cap doesn't always starve the same ones.
 setInterval(() => {
-  if (view === 'board' || document.hidden) return;
-  for (const e of live) if (Math.random() < .45) emitPuff(e);
-}, 900);
+  if (view === 'board' || document.hidden || !live.length) return;
+  const start = Math.floor(Math.random() * live.length);
+  for (let i = 0; i < live.length; i++) emitPuff(live[(start + i) % live.length]);
+}, 500);
 
 /* ================= data loop ================= */
 const API_KEY = 'MW9S-E7SL-26DU-VV8V'; // BART's public demo key
