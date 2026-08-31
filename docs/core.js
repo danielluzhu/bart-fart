@@ -71,7 +71,19 @@
         getJSON(api('route', { cmd: 'routeinfo', route: r.number })),
         getJSON(api('sched', { cmd: 'routesched', route: r.number })).catch(() => null),
       ]);
-      const stations = asArray(info.root.routes.route.config.station);
+      let stations = asArray(info.root.routes.route.config.station);
+      // BART's routeinfo for the OAK airport shuttle is degenerate (its config
+      // lists ["OAKL","OAKL"]). Rebuild the endpoints from the route abbr
+      // ("COLS-OAKL"), ordered so the route's stated direction matches
+      // geography (North = higher-latitude station last).
+      if (new Set(stations).size < 2 && /^\w+-\w+$/.test(r.abbr || '')) {
+        const ends = r.abbr.split('-');
+        if (network.stations[ends[0]] && network.stations[ends[1]]) {
+          const northLast = network.stations[ends[0]].lat < network.stations[ends[1]].lat;
+          if ((info.root.routes.route.direction === 'North') !== northLast) ends.reverse();
+          stations = ends;
+        }
+      }
 
       // Travel time for each consecutive station pair: median of the deltas
       // across every scheduled train that serves the pair.

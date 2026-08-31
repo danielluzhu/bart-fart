@@ -1125,11 +1125,11 @@ async function getJSON(url) {
 // cache it in localStorage for a day to keep page loads fast.
 async function loadNetworkCached() {
   try {
-    const c = JSON.parse(localStorage.getItem('bart-fart-network') || 'null');
+    const c = JSON.parse(localStorage.getItem('bart-fart-network-v2') || 'null');
     if (c && Date.now() - c.at < 24 * 3600 * 1000) return c.network;
   } catch (e) {}
   const net = await BartCore.loadNetwork(getJSON, API_KEY);
-  try { localStorage.setItem('bart-fart-network', JSON.stringify({ at: Date.now(), network: net })); } catch (e) {}
+  try { localStorage.setItem('bart-fart-network-v2', JSON.stringify({ at: Date.now(), network: net })); } catch (e) {}
   return net;
 }
 
