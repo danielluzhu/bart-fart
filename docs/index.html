@@ -515,8 +515,17 @@ try { hiddenLines = new Set(JSON.parse(localStorage.getItem('bart-fart-hidden-li
 const lineLayers = {}; // color -> [polyline, ...]
 
 function toggleLine(color) {
-  if (hiddenLines.has(color)) hiddenLines.delete(color);
-  else hiddenLines.add(color);
+  const all = Object.keys(lineLayers);
+  const visible = all.filter((c) => !hiddenLines.has(c));
+  if (visible.length === all.length) {
+    hiddenLines = new Set(all.filter((c) => c !== color)); // first click: spotlight this line
+  } else if (hiddenLines.has(color)) {
+    hiddenLines.delete(color); // bring a line back into the mix
+  } else if (visible.length === 1) {
+    hiddenLines.clear(); // clicking the lone spotlit line restores everything
+  } else {
+    hiddenLines.add(color);
+  }
   try { localStorage.setItem('bart-fart-hidden-lines', JSON.stringify([...hiddenLines])); } catch (e) {}
   applyLineFilter();
 }
@@ -1064,7 +1073,7 @@ function updateTrains(trains) {
   lines.hidden = false;
   lines.innerHTML = Object.entries(counts).sort()
     .map(([c, v]) => `<span class="chip${hiddenLines.has(c) ? ' off' : ''}" data-color="${c}" ` +
-      `title="Show/hide the ${c.toLowerCase()} line">` +
+      `title="Spotlight the ${c.toLowerCase()} line (more clicks toggle lines; last line restores all)">` +
       `<i style="background:${v.hex};color:${v.hex}"></i>${c} <span>${v.n}</span></span>`)
     .join('');
   const when = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
