@@ -1050,7 +1050,12 @@ function updateTrains(trains) {
   for (const e of unmatched) e.marker.remove();
   live = next;
 
+  // Seed from the full route list so every line gets a chip, even with
+  // no trains running right now (shown as 0).
   const counts = {};
+  if (network) for (const r of network.routes) {
+    counts[r.color] = counts[r.color] || { n: 0, hex: r.hexcolor };
+  }
   for (const t of trains) {
     counts[t.color] = counts[t.color] || { n: 0, hex: t.hexcolor };
     counts[t.color].n++;
